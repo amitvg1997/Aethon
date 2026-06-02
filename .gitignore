@@ -1,0 +1,20 @@
+# Terraform local cache and state
+Infrastructure/.terraform/
+Infrastructure/*.tfstate
+Infrastructure/*.tfstate.*
+Infrastructure/*.tfplan
+Infrastructure/.terraform.tfstate.lock.info
+Infrastructure/crash.log
+Infrastructure/crash.*.log
+Infrastructure/*.tfvars
+Infrastructure/*.tfvars.json
+
+# Python local environment and bytecode
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+
+# Local environment variables
+.env
+.env.*
