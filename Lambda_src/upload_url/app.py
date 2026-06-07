@@ -5,7 +5,6 @@ from pathlib import PurePath
 
 import boto3
 
-
 s3_client = boto3.client("s3")
 DOCUMENTS_BUCKET = os.environ["DOCUMENTS_BUCKET"]
 UPLOAD_URL_EXPIRATION_SECONDS = 300
