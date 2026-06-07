@@ -92,12 +92,19 @@ data "aws_iam_policy_document" "github_actions_deploy" {
     actions = [
       "s3:CreateBucket",
       "s3:DeleteBucket",
+      "s3:GetAccelerateConfiguration",
+      "s3:GetBucketAcl",
       "s3:GetBucketLocation",
+      "s3:GetBucketLogging",
+      "s3:GetBucketObjectLockConfiguration",
       "s3:GetBucketPolicy",
       "s3:GetBucketPublicAccessBlock",
       "s3:GetBucketCors",
+      "s3:GetBucketRequestPayment",
       "s3:GetBucketVersioning",
       "s3:GetEncryptionConfiguration",
+      "s3:GetLifecycleConfiguration",
+      "s3:GetReplicationConfiguration",
       "s3:ListBucket",
       "s3:PutBucketPolicy",
       "s3:PutBucketPublicAccessBlock",
@@ -125,6 +132,7 @@ data "aws_iam_policy_document" "github_actions_deploy" {
       "dynamodb:CreateTable",
       "dynamodb:DeleteTable",
       "dynamodb:DescribeTable",
+      "dynamodb:DescribeTimeToLive",
       "dynamodb:DescribeContinuousBackups",
       "dynamodb:ListTagsOfResource",
       "dynamodb:TagResource",
@@ -177,6 +185,9 @@ data "aws_iam_policy_document" "github_actions_deploy" {
     resources = [
       "arn:aws:apigateway:${var.aws_region}::/apis",
       "arn:aws:apigateway:${var.aws_region}::/apis/*",
+      "arn:aws:apigateway:${var.aws_region}::/v2/apis",
+      "arn:aws:apigateway:${var.aws_region}::/v2/apis/*",
+      "arn:aws:apigateway:${var.aws_region}::/tags/*",
     ]
   }
 
