@@ -1,0 +1,154 @@
+name: Terraform Deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "Infrastructure/**"
+      - "Lambda_src/**"
+      - ".github/workflows/terraform.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "Infrastructure/**"
+      - "Lambda_src/**"
+      - ".github/workflows/terraform.yml"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: terraform-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'eu-central-1' }}
+  TF_VAR_aws_region: ${{ vars.AWS_REGION || 'eu-central-1' }}
+  TF_VAR_project_name: ${{ vars.TF_VAR_project_name || 'aethon' }}
+  TF_VAR_environment: ${{ vars.TF_VAR_environment || 'dev' }}
+
+jobs:
+  terraform:
+    name: Terraform
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Infrastructure
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate GitHub configuration
+        run: |
+          test -n "${{ secrets.AWS_ROLE_ARN }}" || {
+            echo "Missing repository secret: AWS_ROLE_ARN"
+            exit 1
+          }
+          test -n "${{ vars.TF_STATE_BUCKET }}" || {
+            echo "Missing repository variable: TF_STATE_BUCKET"
+            exit 1
+          }
+          test -n "${{ vars.TF_LOCK_TABLE }}" || {
+            echo "Missing repository variable: TF_LOCK_TABLE"
+            exit 1
+          }
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.0
+          terraform_wrapper: false
+
+      - name: Terraform fmt
+        working-directory: ${{ github.workspace }}
+        run: |
+          terraform fmt -check -recursive Infrastructure
+          terraform fmt -check -recursive bootstrap
+
+      - name: Write backend config
+        run: |
+          {
+            echo "bucket         = \"${{ vars.TF_STATE_BUCKET }}\""
+            echo "key            = \"infrastructure/terraform.tfstate\""
+            echo "region         = \"${{ env.AWS_REGION }}\""
+            echo "dynamodb_table = \"${{ vars.TF_LOCK_TABLE }}\""
+            echo "encrypt        = true"
+          } > backend.hcl
+
+      - name: Terraform init
+        run: terraform init -backend-config=backend.hcl
+
+      - name: Terraform validate
+        run: terraform validate
+
+      - name: Terraform plan
+        id: plan
+        run: |
+          terraform plan -no-color -input=false -out=tfplan
+          terraform show -no-color tfplan > plan.txt
+
+      - name: Comment plan on pull request
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('Infrastructure/plan.txt', 'utf8');
+            const maxLength = 60000;
+            const body = [
+              '## Terraform plan',
+              '',
+              '<details><summary>Show plan</summary>',
+              '',
+              '```',
+              plan.length > maxLength
+                ? plan.slice(0, maxLength) + '\n... truncated ...'
+                : plan,
+              '```',
+              '',
+              '</details>',
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existing = comments.find((comment) =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('## Terraform plan')
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+      - name: Terraform apply
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: terraform apply -auto-approve -input=false tfplan

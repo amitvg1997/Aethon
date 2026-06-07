@@ -1,0 +1,5 @@
+bucket         = "REPLACE_WITH_BOOTSTRAP_OUTPUT_terraform_state_bucket"
+key            = "infrastructure/terraform.tfstate"
+region         = "eu-central-1"
+dynamodb_table = "REPLACE_WITH_BOOTSTRAP_OUTPUT_terraform_lock_table"
+encrypt        = true

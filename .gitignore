@@ -3,11 +3,19 @@ Infrastructure/.terraform/
 Infrastructure/*.tfstate
 Infrastructure/*.tfstate.*
 Infrastructure/*.tfplan
+Infrastructure/plan.txt
+Infrastructure/backend.hcl
 Infrastructure/.terraform.tfstate.lock.info
 Infrastructure/crash.log
 Infrastructure/crash.*.log
 Infrastructure/*.tfvars
 Infrastructure/*.tfvars.json
+
+bootstrap/.terraform/
+bootstrap/*.tfstate
+bootstrap/*.tfstate.*
+bootstrap/.terraform.tfstate.lock.info
+bootstrap/terraform.tfvars
 
 # Python local environment and bytecode
 venv/
