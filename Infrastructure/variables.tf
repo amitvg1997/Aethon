@@ -21,3 +21,39 @@ variable "allowed_cors_origins" {
   type        = list(string)
   default     = ["http://localhost:3000"]
 }
+
+variable "deepseek_api_url" {
+  description = "DeepSeek chat completions endpoint used for metadata extraction."
+  type        = string
+  default     = "https://api.deepseek.com/chat/completions"
+}
+
+variable "deepseek_model" {
+  description = "DeepSeek model used for document metadata extraction."
+  type        = string
+  default     = "deepseek-v4-pro"
+}
+
+variable "embedding_model_id" {
+  description = "Amazon Bedrock embedding model used by the Knowledge Base."
+  type        = string
+  default     = "amazon.titan-embed-text-v2:0"
+}
+
+variable "knowledge_base_chunk_max_tokens" {
+  description = "Maximum number of tokens in each fixed-size Knowledge Base chunk."
+  type        = number
+  default     = 500
+}
+
+variable "knowledge_base_chunk_overlap_percentage" {
+  description = "Percentage overlap between adjacent fixed-size Knowledge Base chunks."
+  type        = number
+  default     = 20
+}
+
+variable "opensearch_index_admin_principal_arns" {
+  description = "IAM principal ARNs allowed to create and manage the OpenSearch Serverless vector index."
+  type        = list(string)
+  default     = []
+}

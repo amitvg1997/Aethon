@@ -20,7 +20,7 @@ output "aws_region" {
 
 output "backend_config" {
   description = "Copy these values into Infrastructure/backend.hcl after bootstrap completes."
-  value = <<-EOT
+  value       = <<-EOT
     bucket         = "${aws_s3_bucket.terraform_state.id}"
     key            = "infrastructure/terraform.tfstate"
     region         = "${var.aws_region}"

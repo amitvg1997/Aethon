@@ -13,5 +13,10 @@ terraform {
       source  = "hashicorp/archive"
       version = ">= 2.4"
     }
+
+    opensearch = {
+      source  = "opensearch-project/opensearch"
+      version = ">= 2.3"
+    }
   }
 }

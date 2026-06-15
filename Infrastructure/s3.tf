@@ -36,3 +36,25 @@ resource "aws_s3_bucket_cors_configuration" "documents" {
     max_age_seconds = 3000
   }
 }
+
+resource "aws_lambda_permission" "s3_memory_optimizer" {
+  statement_id  = "AllowS3InvokeMemoryOptimizer"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.memory_optimizer.function_name
+  principal     = "s3.amazonaws.com"
+  source_arn    = aws_s3_bucket.documents.arn
+}
+
+resource "aws_s3_bucket_notification" "documents" {
+  bucket = aws_s3_bucket.documents.id
+
+  lambda_function {
+    lambda_function_arn = aws_lambda_function.memory_optimizer.arn
+    events              = ["s3:ObjectCreated:*"]
+    filter_prefix       = "uploads/"
+  }
+
+  depends_on = [
+    aws_lambda_permission.s3_memory_optimizer,
+  ]
+}

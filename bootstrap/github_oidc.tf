@@ -96,12 +96,14 @@ data "aws_iam_policy_document" "github_actions_deploy" {
       "s3:GetBucketPolicy",
       "s3:GetBucketPublicAccessBlock",
       "s3:GetBucketCors",
+      "s3:GetBucketNotification",
       "s3:GetBucketVersioning",
       "s3:GetEncryptionConfiguration",
       "s3:ListBucket",
       "s3:PutBucketPolicy",
       "s3:PutBucketPublicAccessBlock",
       "s3:PutBucketCors",
+      "s3:PutBucketNotification",
       "s3:PutBucketVersioning",
       "s3:PutEncryptionConfiguration",
       "s3:PutObject",
@@ -160,6 +162,106 @@ data "aws_iam_policy_document" "github_actions_deploy" {
     resources = [
       "arn:aws:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:${var.project_name}-${var.environment}-*",
     ]
+  }
+
+  statement {
+    sid    = "Sns"
+    effect = "Allow"
+
+    actions = [
+      "sns:CreateTopic",
+      "sns:DeleteTopic",
+      "sns:GetTopicAttributes",
+      "sns:GetSubscriptionAttributes",
+      "sns:ListSubscriptionsByTopic",
+      "sns:ListTagsForResource",
+      "sns:SetTopicAttributes",
+      "sns:SetSubscriptionAttributes",
+      "sns:Subscribe",
+      "sns:TagResource",
+      "sns:Unsubscribe",
+      "sns:UntagResource",
+    ]
+
+    resources = [
+      "arn:aws:sns:${var.aws_region}:${data.aws_caller_identity.current.account_id}:${var.project_name}-${var.environment}-*",
+    ]
+  }
+
+  statement {
+    sid    = "SecretsManager"
+    effect = "Allow"
+
+    actions = [
+      "secretsmanager:CreateSecret",
+      "secretsmanager:DeleteSecret",
+      "secretsmanager:DescribeSecret",
+      "secretsmanager:GetResourcePolicy",
+      "secretsmanager:ListSecretVersionIds",
+      "secretsmanager:ListSecrets",
+      "secretsmanager:PutResourcePolicy",
+      "secretsmanager:TagResource",
+      "secretsmanager:UntagResource",
+      "secretsmanager:UpdateSecret",
+    ]
+
+    resources = [
+      "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:${var.project_name}/${var.environment}/deepseek-api-key-*",
+    ]
+  }
+
+  statement {
+    sid    = "OpenSearchServerless"
+    effect = "Allow"
+
+    actions = [
+      "aoss:APIAccessAll",
+      "aoss:BatchGetCollection",
+      "aoss:CreateAccessPolicy",
+      "aoss:CreateCollection",
+      "aoss:CreateSecurityPolicy",
+      "aoss:DeleteAccessPolicy",
+      "aoss:DeleteCollection",
+      "aoss:DeleteSecurityPolicy",
+      "aoss:GetAccessPolicy",
+      "aoss:GetSecurityPolicy",
+      "aoss:ListAccessPolicies",
+      "aoss:ListCollections",
+      "aoss:ListSecurityPolicies",
+      "aoss:TagResource",
+      "aoss:UntagResource",
+      "aoss:UpdateAccessPolicy",
+      "aoss:UpdateCollection",
+      "aoss:UpdateSecurityPolicy",
+    ]
+
+    resources = ["*"]
+  }
+
+  statement {
+    sid    = "BedrockKnowledgeBase"
+    effect = "Allow"
+
+    actions = [
+      "bedrock:CreateDataSource",
+      "bedrock:CreateKnowledgeBase",
+      "bedrock:DeleteDataSource",
+      "bedrock:DeleteKnowledgeBase",
+      "bedrock:GetDataSource",
+      "bedrock:GetIngestionJob",
+      "bedrock:GetKnowledgeBase",
+      "bedrock:InvokeModel",
+      "bedrock:ListDataSources",
+      "bedrock:ListIngestionJobs",
+      "bedrock:ListKnowledgeBases",
+      "bedrock:StartIngestionJob",
+      "bedrock:TagResource",
+      "bedrock:UntagResource",
+      "bedrock:UpdateDataSource",
+      "bedrock:UpdateKnowledgeBase",
+    ]
+
+    resources = ["*"]
   }
 
   statement {
