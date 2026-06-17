@@ -6,6 +6,11 @@ resource "aws_s3_bucket" "documents" {
   }
 }
 
+locals {
+  frontend_origin      = "http://${aws_s3_bucket_website_configuration.frontend.website_endpoint}"
+  cors_allowed_origins = distinct(concat(var.allowed_cors_origins, [local.frontend_origin]))
+}
+
 resource "aws_s3_bucket_public_access_block" "documents" {
   bucket = aws_s3_bucket.documents.id
 
@@ -14,8 +19,6 @@ resource "aws_s3_bucket_public_access_block" "documents" {
   ignore_public_acls      = true
   restrict_public_buckets = true
 }
-
-
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "documents" {
   bucket = aws_s3_bucket.documents.id
@@ -31,7 +34,7 @@ resource "aws_s3_bucket_cors_configuration" "documents" {
   bucket = aws_s3_bucket.documents.id
 
   cors_rule {
-    allowed_origins = var.allowed_cors_origins
+    allowed_origins = local.cors_allowed_origins
     allowed_methods = ["PUT"]
     allowed_headers = ["*"]
     expose_headers  = ["ETag"]

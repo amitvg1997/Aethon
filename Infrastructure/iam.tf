@@ -192,3 +192,49 @@ resource "aws_iam_role_policy" "result_processor" {
   role   = aws_iam_role.result_processor.id
   policy = data.aws_iam_policy_document.result_processor.json
 }
+
+resource "aws_iam_role" "query" {
+  name               = "${var.project_name}-${var.environment}-query"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-query"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "query_logs" {
+  role       = aws_iam_role.query.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+data "aws_iam_policy_document" "query" {
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "bedrock:Retrieve",
+    ]
+
+    resources = [
+      aws_bedrockagent_knowledge_base.documents.arn,
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "secretsmanager:GetSecretValue",
+    ]
+
+    resources = [
+      aws_secretsmanager_secret.deepseek_api_key.arn,
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "query" {
+  name   = "${var.project_name}-${var.environment}-query"
+  role   = aws_iam_role.query.id
+  policy = data.aws_iam_policy_document.query.json
+}

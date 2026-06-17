@@ -86,7 +86,7 @@ data "aws_iam_policy_document" "github_actions_deploy" {
   }
 
   statement {
-    sid    = "S3Documents"
+    sid    = "S3ProjectBuckets"
     effect = "Allow"
 
     actions = [
@@ -134,6 +134,8 @@ data "aws_iam_policy_document" "github_actions_deploy" {
     resources = [
       "arn:aws:s3:::${var.project_name}-${var.environment}-documents-*",
       "arn:aws:s3:::${var.project_name}-${var.environment}-documents-*/*",
+      "arn:aws:s3:::${var.project_name}-${var.environment}-frontend-*",
+      "arn:aws:s3:::${var.project_name}-${var.environment}-frontend-*/*",
     ]
   }
 

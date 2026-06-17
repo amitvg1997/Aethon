@@ -7,6 +7,7 @@ on:
     paths:
       - "Infrastructure/**"
       - "Lambda_src/**"
+      - "Frontend/**"
       - ".github/workflows/terraform.yml"
   pull_request:
     branches:
@@ -14,6 +15,7 @@ on:
     paths:
       - "Infrastructure/**"
       - "Lambda_src/**"
+      - "Frontend/**"
       - ".github/workflows/terraform.yml"
   workflow_dispatch:
 
@@ -152,3 +154,19 @@ jobs:
       - name: Terraform apply
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         run: terraform apply -auto-approve -input=false tfplan
+
+      - name: Deploy frontend
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: |
+          api_endpoint="$(terraform output -raw uploads_api_endpoint)"
+          frontend_bucket="$(terraform output -raw frontend_bucket_name)"
+
+          cat > ../Frontend/config.js <<EOF
+          window.AETHON_CONFIG = {
+            apiBaseUrl: "${api_endpoint}",
+          };
+          EOF
+
+          aws s3 sync ../Frontend "s3://${frontend_bucket}" \
+            --delete \
+            --cache-control "public, max-age=300"

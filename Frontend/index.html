@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Aethon Uploads</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="config.js" defer></script>
+    <script src="app.js" defer></script>
+  </head>
+  <body data-page="upload">
+    <header class="topbar">
+      <a class="brand" href="index.html" aria-label="Aethon uploads">
+        <span class="brand-mark">A</span>
+        <span>Aethon</span>
+      </a>
+      <nav class="nav" aria-label="Primary">
+        <a class="nav-link active" href="index.html">Upload</a>
+        <a class="nav-link" href="chat.html">Ask</a>
+      </nav>
+    </header>
+
+    <main class="workspace upload-workspace">
+      <section class="intro-panel">
+        <p class="eyebrow">Document memory</p>
+        <h1>Feed the knowledge base.</h1>
+        <p class="lede">Drop in PDFs or document images and Aethon will route them to the private S3 upload bucket for extraction, metadata, and RAG ingestion.</p>
+      </section>
+
+      <section class="tool-panel" aria-labelledby="upload-heading">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Uploads</p>
+            <h2 id="upload-heading">Add documents</h2>
+          </div>
+          <button class="ghost-button" id="clearUploadsButton" type="button">Clear</button>
+        </div>
+
+        <label class="dropzone" id="dropzone">
+          <input id="fileInput" type="file" multiple>
+          <span class="drop-title">Choose files or drop them here</span>
+          <span class="drop-copy">Multiple files upload in parallel through short-lived S3 URLs.</span>
+        </label>
+
+        <div class="upload-actions">
+          <button class="primary-button" id="uploadButton" type="button" disabled>Upload selected files</button>
+          <p class="status-line" id="uploadStatus">No files selected.</p>
+        </div>
+
+        <div class="file-list" id="fileList" aria-live="polite"></div>
+      </section>
+    </main>
+  </body>
+</html>

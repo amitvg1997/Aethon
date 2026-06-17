@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Aethon Ask</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="config.js" defer></script>
+    <script src="app.js" defer></script>
+  </head>
+  <body data-page="chat">
+    <header class="topbar">
+      <a class="brand" href="index.html" aria-label="Aethon uploads">
+        <span class="brand-mark">A</span>
+        <span>Aethon</span>
+      </a>
+      <nav class="nav" aria-label="Primary">
+        <a class="nav-link" href="index.html">Upload</a>
+        <a class="nav-link active" href="chat.html">Ask</a>
+      </nav>
+    </header>
+
+    <main class="workspace chat-workspace">
+      <section class="intro-panel">
+        <p class="eyebrow">RAG question answering</p>
+        <h1>Ask your document memory.</h1>
+        <p class="lede">Aethon retrieves relevant Bedrock Knowledge Base context and drafts an answer with the connected LLM API.</p>
+      </section>
+
+      <section class="chat-panel" aria-labelledby="chat-heading">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Chat</p>
+            <h2 id="chat-heading">Question answer</h2>
+          </div>
+          <button class="ghost-button" id="clearChatButton" type="button">Clear</button>
+        </div>
+
+        <div class="messages" id="messages" aria-live="polite">
+          <article class="message assistant">
+            <p>Ask a question about the documents you have uploaded.</p>
+          </article>
+        </div>
+
+        <form class="composer" id="questionForm">
+          <label class="sr-only" for="questionInput">Question</label>
+          <textarea id="questionInput" rows="3" placeholder="What should I know from these documents?"></textarea>
+          <button class="primary-button" id="askButton" type="submit">Ask</button>
+        </form>
+      </section>
+    </main>
+  </body>
+</html>

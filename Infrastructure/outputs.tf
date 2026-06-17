@@ -4,8 +4,23 @@ output "documents_bucket_name" {
 }
 
 output "uploads_api_endpoint" {
-  description = "Base URL for the document upload API. Request a presigned URL with POST /uploads."
+  description = "Base URL for the document API. Request a presigned URL with POST /uploads and query documents with POST /query."
   value       = aws_apigatewayv2_api.uploads.api_endpoint
+}
+
+output "frontend_bucket_name" {
+  description = "Name of the public S3 bucket used to host the static frontend."
+  value       = aws_s3_bucket.frontend.id
+}
+
+output "frontend_website_endpoint" {
+  description = "S3 website endpoint for the static frontend."
+  value       = aws_s3_bucket_website_configuration.frontend.website_endpoint
+}
+
+output "frontend_url" {
+  description = "HTTP URL for the static frontend."
+  value       = "http://${aws_s3_bucket_website_configuration.frontend.website_endpoint}"
 }
 
 output "memory_optimizer_function_name" {
@@ -16,6 +31,11 @@ output "memory_optimizer_function_name" {
 output "result_processor_function_name" {
   description = "Name of the Lambda function triggered after Textract finishes processing a document."
   value       = aws_lambda_function.result_processor.function_name
+}
+
+output "query_function_name" {
+  description = "Name of the Lambda function used by the document Q&A API."
+  value       = aws_lambda_function.query.function_name
 }
 
 output "textract_results_topic_arn" {
