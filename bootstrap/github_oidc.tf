@@ -354,9 +354,7 @@ data "aws_iam_policy_document" "github_actions_deploy" {
       "iam:CreateServiceLinkedRole",
     ]
 
-    resources = [
-      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-service-role/observability.aoss.amazonaws.com/AWSServiceRoleForAmazonOpenSearchServerless",
-    ]
+    resources = ["*"]
 
     condition {
       test     = "StringEquals"
