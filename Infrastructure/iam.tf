@@ -44,3 +44,151 @@ resource "aws_iam_role_policy" "upload_url_s3" {
   role   = aws_iam_role.upload_url.id
   policy = data.aws_iam_policy_document.upload_url_s3.json
 }
+
+resource "aws_iam_role" "memory_optimizer" {
+  name               = "${var.project_name}-${var.environment}-memory-optimizer"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-memory-optimizer"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "memory_optimizer_logs" {
+  role       = aws_iam_role.memory_optimizer.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+data "aws_iam_policy_document" "memory_optimizer" {
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "s3:GetObject",
+    ]
+
+    resources = [
+      "${aws_s3_bucket.documents.arn}/uploads/*",
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "dynamodb:PutItem",
+      "dynamodb:UpdateItem",
+    ]
+
+    resources = [
+      aws_dynamodb_table.documents.arn,
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "textract:StartDocumentTextDetection",
+    ]
+
+    resources = ["*"]
+  }
+
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "iam:PassRole",
+    ]
+
+    resources = [
+      aws_iam_role.textract_sns_publish.arn,
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "memory_optimizer" {
+  name   = "${var.project_name}-${var.environment}-memory-optimizer"
+  role   = aws_iam_role.memory_optimizer.id
+  policy = data.aws_iam_policy_document.memory_optimizer.json
+}
+
+resource "aws_iam_role" "result_processor" {
+  name               = "${var.project_name}-${var.environment}-result-processor"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-result-processor"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "result_processor_logs" {
+  role       = aws_iam_role.result_processor.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+data "aws_iam_policy_document" "result_processor" {
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "textract:GetDocumentTextDetection",
+    ]
+
+    resources = ["*"]
+  }
+
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "s3:PutObject",
+    ]
+
+    resources = [
+      "${aws_s3_bucket.documents.arn}/extracted-text/*",
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "dynamodb:UpdateItem",
+    ]
+
+    resources = [
+      aws_dynamodb_table.documents.arn,
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "secretsmanager:GetSecretValue",
+    ]
+
+    resources = [
+      aws_secretsmanager_secret.deepseek_api_key.arn,
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "bedrock:StartIngestionJob",
+      "bedrock:GetIngestionJob",
+    ]
+
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role_policy" "result_processor" {
+  name   = "${var.project_name}-${var.environment}-result-processor"
+  role   = aws_iam_role.result_processor.id
+  policy = data.aws_iam_policy_document.result_processor.json
+}
