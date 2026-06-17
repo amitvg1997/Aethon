@@ -63,6 +63,11 @@ terraform plan
 terraform apply
 ```
 
+Run bootstrap again whenever `bootstrap/` changes. The GitHub Actions workflow
+only applies `Infrastructure/`, so deploy-role permission updates such as new
+SNS, Secrets Manager, OpenSearch Serverless, or Bedrock actions must be applied
+locally before the pipeline can create those resources.
+
 Save the outputs:
 
 ```bash
