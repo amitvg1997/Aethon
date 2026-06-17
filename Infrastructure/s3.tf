@@ -57,6 +57,7 @@ resource "aws_s3_bucket_notification" "documents" {
     lambda_function_arn = aws_lambda_function.memory_optimizer.arn
     events              = ["s3:ObjectCreated:*"]
     filter_prefix       = "uploads/"
+    filter_suffix       = ".pdf"
   }
 
   depends_on = [

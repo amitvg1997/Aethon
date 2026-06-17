@@ -44,6 +44,13 @@ def _extension_from_filename(filename):
     return suffix.lower().lstrip(".")
 
 
+def _is_supported_document(object_key, object_size):
+    if object_size <= 0:
+        return False
+
+    return _extension_from_filename(object_key) == "pdf"
+
+
 def _build_initial_document_item(bucket_name, object_key):
     filename = _filename_from_key(object_key)
     now = _utc_now()
@@ -140,6 +147,16 @@ def lambda_handler(event, context):
 
         bucket_name = record["s3"]["bucket"]["name"]
         object_key = unquote_plus(record["s3"]["object"]["key"])
+        object_size = int(record["s3"]["object"].get("size", 0))
+
+        if not _is_supported_document(object_key, object_size):
+            logger.info(
+                "Skipping unsupported or empty upload: bucket=%s key=%s size=%s",
+                bucket_name,
+                object_key,
+                object_size,
+            )
+            continue
 
         item = _build_initial_document_item(bucket_name, object_key)
 
