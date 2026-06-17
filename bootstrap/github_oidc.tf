@@ -280,6 +280,7 @@ data "aws_iam_policy_document" "github_actions_deploy" {
       "bedrock:ListDataSources",
       "bedrock:ListIngestionJobs",
       "bedrock:ListKnowledgeBases",
+      "bedrock:ListTagsForResource",
       "bedrock:StartIngestionJob",
       "bedrock:TagResource",
       "bedrock:UntagResource",
