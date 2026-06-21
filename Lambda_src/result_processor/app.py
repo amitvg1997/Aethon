@@ -95,6 +95,7 @@ def _deepseek_request(payload):
         headers={
             "Authorization": f"Bearer {_get_deepseek_api_key()}",
             "Content-Type": "application/json",
+            "User-Agent": "Aethon/1.0 (AWS Lambda metadata extraction)",
         },
         method="POST",
     )
