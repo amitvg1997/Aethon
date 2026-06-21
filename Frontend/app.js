@@ -171,7 +171,7 @@
     const askButton = document.getElementById("askButton");
     const clearButton = document.getElementById("clearChatButton");
 
-    function addMessage(role, text, citations) {
+    function addMessage(role, text, usageSummary) {
       const message = document.createElement("article");
       message.className = `message ${role}`;
 
@@ -179,18 +179,11 @@
       paragraph.textContent = text;
       message.appendChild(paragraph);
 
-      if (citations && citations.length) {
-        const citationList = document.createElement("div");
-        citationList.className = "citations";
-
-        citations.forEach((citation) => {
-          const item = document.createElement("div");
-          item.className = "citation";
-          item.textContent = `Source ${citation.id}: ${citation.preview}`;
-          citationList.appendChild(item);
-        });
-
-        message.appendChild(citationList);
+      if (role === "assistant" && usageSummary) {
+        const usage = document.createElement("p");
+        usage.className = "usage-summary";
+        usage.textContent = `Retrieval: ${usageSummary.documents_selected} document(s) selected, ${usageSummary.retrieved_chunks} chunk(s) used, about ${usageSummary.estimated_context_tokens} context tokens sent to the LLM. Potential context reduction versus the unfiltered maximum: ${usageSummary.potential_context_token_reduction_percent}%.`;
+        message.appendChild(usage);
       }
 
       messages.appendChild(message);
@@ -224,7 +217,7 @@
       try {
         const response = await postJson("/query", {question});
         pending.remove();
-        addMessage("assistant", response.answer || "No answer was returned.", response.citations || []);
+        addMessage("assistant", response.answer || "No answer was returned.", response.usage_summary);
       } catch (error) {
         pending.remove();
         addMessage("assistant", error.message || "The query failed.");

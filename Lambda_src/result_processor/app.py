@@ -76,6 +76,26 @@ def _store_extracted_text(document_id, extracted_text):
     return object_key
 
 
+def _store_knowledge_base_metadata(document_id, object_key, metadata):
+    metadata_key = f"{object_key}.metadata.json"
+    sidecar = {
+        "metadataAttributes": {
+            "document_id": document_id,
+            "document_type": metadata["document_type"],
+            "title": metadata["title"],
+        }
+    }
+
+    s3_client.put_object(
+        Bucket=DOCUMENTS_BUCKET,
+        Key=metadata_key,
+        Body=json.dumps(sidecar).encode("utf-8"),
+        ContentType="application/json",
+    )
+
+    return metadata_key
+
+
 def _get_deepseek_api_key():
     global _deepseek_api_key
 
@@ -183,12 +203,15 @@ def _mark_document_failed(document_id, message):
     )
 
 
-def _update_document_metadata(document_id, job_id, extracted_text_key, text_preview, metadata):
+def _update_document_metadata(
+    document_id, job_id, extracted_text_key, knowledge_base_metadata_key, text_preview, metadata
+):
     table.update_item(
         Key={"document_id": document_id},
         UpdateExpression=(
             "SET textract_job_id = :textract_job_id, "
             "extracted_text_s3_key = :extracted_text_s3_key, "
+            "knowledge_base_metadata_s3_key = :knowledge_base_metadata_s3_key, "
             "text_preview = :text_preview, "
             "title = :title, "
             "summary = :summary, "
@@ -202,6 +225,7 @@ def _update_document_metadata(document_id, job_id, extracted_text_key, text_prev
         ExpressionAttributeValues={
             ":textract_job_id": job_id,
             ":extracted_text_s3_key": extracted_text_key,
+            ":knowledge_base_metadata_s3_key": knowledge_base_metadata_key,
             ":text_preview": text_preview,
             ":title": metadata["title"],
             ":summary": metadata["summary"],
@@ -259,11 +283,16 @@ def _process_textract_completion(message):
     extracted_text = "\n".join(_get_textract_lines(job_id))
     extracted_text_key = _store_extracted_text(document_id, extracted_text)
     metadata = _extract_metadata_with_deepseek(extracted_text)
+    document_key = message["DocumentLocation"]["S3ObjectName"]
+    knowledge_base_metadata_key = _store_knowledge_base_metadata(
+        document_id, document_key, metadata
+    )
 
     _update_document_metadata(
         document_id=document_id,
         job_id=job_id,
         extracted_text_key=extracted_text_key,
+        knowledge_base_metadata_key=knowledge_base_metadata_key,
         text_preview=extracted_text[:TEXT_PREVIEW_LIMIT],
         metadata=metadata,
     )

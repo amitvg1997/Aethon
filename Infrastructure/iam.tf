@@ -148,6 +148,7 @@ data "aws_iam_policy_document" "result_processor" {
 
     resources = [
       "${aws_s3_bucket.documents.arn}/extracted-text/*",
+      "${aws_s3_bucket.documents.arn}/uploads/*",
     ]
   }
 
@@ -208,6 +209,18 @@ resource "aws_iam_role_policy_attachment" "query_logs" {
 }
 
 data "aws_iam_policy_document" "query" {
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "dynamodb:Scan",
+    ]
+
+    resources = [
+      aws_dynamodb_table.documents.arn,
+    ]
+  }
+
   statement {
     effect = "Allow"
 

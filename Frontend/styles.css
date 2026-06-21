@@ -332,6 +332,12 @@ h2 {
   white-space: pre-wrap;
 }
 
+.usage-summary {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
 .message.user {
   align-self: flex-end;
   color: #ffffff;

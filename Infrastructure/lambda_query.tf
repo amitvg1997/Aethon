@@ -17,11 +17,14 @@ resource "aws_lambda_function" "query" {
 
   environment {
     variables = {
-      DEEPSEEK_API_KEY_SECRET_ARN = aws_secretsmanager_secret.deepseek_api_key.arn
-      DEEPSEEK_API_URL            = var.deepseek_api_url
-      DEEPSEEK_MODEL              = var.deepseek_model
-      KNOWLEDGE_BASE_ID           = aws_bedrockagent_knowledge_base.documents.id
-      MAX_RETRIEVAL_RESULTS       = "5"
+      DOCUMENTS_TABLE                 = aws_dynamodb_table.documents.name
+      DEEPSEEK_API_KEY_SECRET_ARN     = aws_secretsmanager_secret.deepseek_api_key.arn
+      DEEPSEEK_API_URL                = var.deepseek_api_url
+      DEEPSEEK_MODEL                  = var.deepseek_model
+      KNOWLEDGE_BASE_ID               = aws_bedrockagent_knowledge_base.documents.id
+      MAX_RETRIEVAL_RESULTS           = "5"
+      KNOWLEDGE_BASE_CHUNK_MAX_TOKENS = tostring(var.knowledge_base_chunk_max_tokens)
+      MAX_DOCUMENT_CANDIDATES         = "3"
     }
   }
 
