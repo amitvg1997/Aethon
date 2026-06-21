@@ -136,4 +136,10 @@ resource "opensearch_index" "knowledge_base" {
     aws_opensearchserverless_access_policy.knowledge_base,
     aws_opensearchserverless_collection.knowledge_base,
   ]
+
+  # Bedrock extends the index mapping as it ingests documents. Preserve those
+  # managed fields instead of replacing an index that already contains vectors.
+  lifecycle {
+    ignore_changes = [mappings]
+  }
 }
