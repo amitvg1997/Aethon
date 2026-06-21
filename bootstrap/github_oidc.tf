@@ -123,6 +123,7 @@ data "aws_iam_policy_document" "github_actions_deploy" {
       "s3:PutBucketCors",
       "s3:PutBucketNotification",
       "s3:PutBucketVersioning",
+      "s3:PutBucketWebsite",
       "s3:PutEncryptionConfiguration",
       "s3:PutObject",
       "s3:GetObject",
