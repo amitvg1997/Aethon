@@ -4,8 +4,15 @@ import uuid
 from pathlib import PurePath
 
 import boto3
+from botocore.config import Config
 
-s3_client = boto3.client("s3")
+AWS_REGION = os.environ["AWS_REGION"]
+s3_client = boto3.client(
+    "s3",
+    region_name=AWS_REGION,
+    endpoint_url=f"https://s3.{AWS_REGION}.amazonaws.com",
+    config=Config(s3={"addressing_style": "virtual"}),
+)
 DOCUMENTS_BUCKET = os.environ["DOCUMENTS_BUCKET"]
 UPLOAD_URL_EXPIRATION_SECONDS = 300
 
