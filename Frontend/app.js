@@ -3,240 +3,253 @@
   const apiBaseUrl = String(config.apiBaseUrl || "").replace(/\/$/, "");
 
   function formatBytes(bytes) {
-    if (!Number.isFinite(bytes) || bytes <= 0) {
-      return "0 B";
-    }
-
+    if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
     const units = ["B", "KB", "MB", "GB"];
-    const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-    const value = bytes / 1024 ** index;
-    return `${value.toFixed(value >= 10 || index === 0 ? 0 : 1)} ${units[index]}`;
+    const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+    const v = bytes / 1024 ** i;
+    return `${v.toFixed(v >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
   }
 
   function requireApiBase() {
-    if (apiBaseUrl) {
-      return true;
-    }
-
+    if (apiBaseUrl) return true;
     alert("Frontend config is missing the API endpoint. Deploy through GitHub Actions or set Frontend/config.js locally.");
     return false;
   }
 
   async function postJson(path, payload) {
-    const response = await fetch(`${apiBaseUrl}${path}`, {
+    const res = await fetch(`${apiBaseUrl}${path}`, {
       method: "POST",
-      headers: {"content-type": "application/json"},
+      headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
     });
-
-    const body = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      throw new Error(body.message || `Request failed with status ${response.status}`);
-    }
-
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.message || `Request failed with status ${res.status}`);
     return body;
   }
 
+  /* ── Upload page ───────────────────────────── */
+
   function initUploadPage() {
-    const fileInput = document.getElementById("fileInput");
-    const dropzone = document.getElementById("dropzone");
-    const uploadButton = document.getElementById("uploadButton");
-    const clearButton = document.getElementById("clearUploadsButton");
-    const fileList = document.getElementById("fileList");
+    const fileInput  = document.getElementById("fileInput");
+    const dropzone   = document.getElementById("dropzone");
+    const uploadBtn  = document.getElementById("uploadButton");
+    const clearBtn   = document.getElementById("clearUploadsButton");
+    const fileList   = document.getElementById("fileList");
     const statusLine = document.getElementById("uploadStatus");
     let files = [];
 
+    const fileIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
+
     function renderFiles(states) {
       fileList.innerHTML = "";
-
-      files.forEach((file, index) => {
-        const state = states && states[index] ? states[index] : {label: "Ready", kind: ""};
+      files.forEach((file, i) => {
+        const state = (states && states[i]) || { label: "Ready", kind: "" };
         const row = document.createElement("article");
         row.className = "file-row";
         row.innerHTML = `
-          <div>
+          <div class="file-icon">${fileIcon}</div>
+          <div class="file-info">
             <div class="file-name"></div>
-            <div class="file-meta">${formatBytes(file.size)} - ${file.type || "document"}</div>
+            <div class="file-meta">${formatBytes(file.size)} · PDF</div>
           </div>
-          <div class="pill ${state.kind || ""}">${state.label}</div>
+          <span class="pill ${state.kind || ""}">${state.label}</span>
         `;
         row.querySelector(".file-name").textContent = file.name;
         fileList.appendChild(row);
       });
 
-      uploadButton.disabled = files.length === 0;
+      uploadBtn.disabled = files.length === 0;
       statusLine.textContent = files.length
-        ? `${files.length} file${files.length === 1 ? "" : "s"} selected.`
-        : "No files selected.";
+        ? `${files.length} file${files.length === 1 ? "" : "s"} selected`
+        : "No files selected";
     }
 
-    function setFiles(nextFiles) {
-      files = Array.from(nextFiles || []);
+    function setFiles(next) {
+      files = Array.from(next || []);
       renderFiles();
     }
 
-    function uploadToS3(uploadUrl, file, contentType) {
+    function uploadToS3(url, file, contentType) {
       return new Promise((resolve, reject) => {
-        const request = new XMLHttpRequest();
-        request.open("PUT", uploadUrl);
-        request.setRequestHeader("Content-Type", contentType);
-
-        request.onload = () => {
-          if (request.status >= 200 && request.status < 300) {
-            resolve();
-          } else {
-            reject(new Error(`S3 upload failed with status ${request.status}`));
-          }
-        };
-        request.onerror = () => reject(new Error("S3 upload failed."));
-        request.send(file);
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", url);
+        xhr.setRequestHeader("Content-Type", contentType);
+        xhr.onload = () =>
+          xhr.status >= 200 && xhr.status < 300
+            ? resolve()
+            : reject(new Error(`S3 upload failed: ${xhr.status}`));
+        xhr.onerror = () => reject(new Error("S3 upload failed."));
+        xhr.send(file);
       });
     }
 
     async function uploadFile(file, index, states) {
-      states[index] = {label: "Requesting URL", kind: ""};
+      states[index] = { label: "Requesting…", kind: "" };
       renderFiles(states);
 
       const contentType = file.type || "application/octet-stream";
-      const upload = await postJson("/uploads", {
-        filename: file.name,
-        content_type: contentType,
-      });
+      const upload = await postJson("/uploads", { filename: file.name, content_type: contentType });
 
-      states[index] = {label: "Uploading", kind: ""};
+      states[index] = { label: "Uploading…", kind: "" };
       renderFiles(states);
       await uploadToS3(upload.upload_url, file, contentType);
 
-      states[index] = {label: "Uploaded", kind: "done"};
+      states[index] = { label: "Uploaded", kind: "done" };
       renderFiles(states);
       return upload.object_key;
     }
 
     fileInput.addEventListener("change", () => setFiles(fileInput.files));
 
-    ["dragenter", "dragover"].forEach((eventName) => {
-      dropzone.addEventListener(eventName, (event) => {
-        event.preventDefault();
-        dropzone.classList.add("dragging");
-      });
-    });
+    ["dragenter", "dragover"].forEach((e) =>
+      dropzone.addEventListener(e, (ev) => { ev.preventDefault(); dropzone.classList.add("dragging"); })
+    );
+    ["dragleave", "drop"].forEach((e) =>
+      dropzone.addEventListener(e, () => dropzone.classList.remove("dragging"))
+    );
+    dropzone.addEventListener("drop", (ev) => { ev.preventDefault(); setFiles(ev.dataTransfer.files); });
 
-    ["dragleave", "drop"].forEach((eventName) => {
-      dropzone.addEventListener(eventName, () => dropzone.classList.remove("dragging"));
-    });
+    clearBtn.addEventListener("click", () => { fileInput.value = ""; setFiles([]); });
 
-    dropzone.addEventListener("drop", (event) => {
-      event.preventDefault();
-      setFiles(event.dataTransfer.files);
-    });
+    uploadBtn.addEventListener("click", async () => {
+      if (!requireApiBase() || files.length === 0) return;
 
-    clearButton.addEventListener("click", () => {
-      fileInput.value = "";
-      setFiles([]);
-    });
-
-    uploadButton.addEventListener("click", async () => {
-      if (!requireApiBase() || files.length === 0) {
-        return;
-      }
-
-      uploadButton.disabled = true;
-      const states = files.map(() => ({label: "Queued", kind: ""}));
+      uploadBtn.disabled = true;
+      const states = files.map(() => ({ label: "Queued", kind: "" }));
       renderFiles(states);
 
       const results = await Promise.allSettled(
-        files.map((file, index) => uploadFile(file, index, states))
+        files.map((file, i) => uploadFile(file, i, states))
       );
 
-      results.forEach((result, index) => {
-        if (result.status === "rejected") {
-          states[index] = {label: "Failed", kind: "error"};
-        }
+      results.forEach((r, i) => {
+        if (r.status === "rejected") states[i] = { label: "Failed", kind: "error" };
       });
 
       renderFiles(states);
-      const uploaded = results.filter((result) => result.status === "fulfilled").length;
-      statusLine.textContent = `${uploaded} of ${files.length} file${files.length === 1 ? "" : "s"} uploaded.`;
-      uploadButton.disabled = files.length === 0;
+      const uploaded = results.filter((r) => r.status === "fulfilled").length;
+      statusLine.textContent = `${uploaded} of ${files.length} file${files.length === 1 ? "" : "s"} uploaded`;
+      uploadBtn.disabled = files.length === 0;
     });
 
     renderFiles();
   }
 
+  /* ── Chat page ─────────────────────────────── */
+
   function initChatPage() {
-    const form = document.getElementById("questionForm");
-    const input = document.getElementById("questionInput");
-    const messages = document.getElementById("messages");
-    const askButton = document.getElementById("askButton");
-    const clearButton = document.getElementById("clearChatButton");
+    const form      = document.getElementById("questionForm");
+    const input     = document.getElementById("questionInput");
+    const messages  = document.getElementById("messages");
+    const askBtn    = document.getElementById("askButton");
+    const clearBtn  = document.getElementById("clearChatButton");
 
-    function addMessage(role, text, usageSummary) {
-      const message = document.createElement("article");
-      message.className = `message ${role}`;
+    function addMessage(role, content, meta) {
+      const msg = document.createElement("div");
+      msg.className = `message ${role}`;
 
-      const paragraph = document.createElement("p");
-      paragraph.textContent = text;
-      message.appendChild(paragraph);
+      if (content === "__thinking__") {
+        msg.innerHTML = `<div class="message-bubble"><div class="typing-dots"><span></span><span></span><span></span></div></div>`;
+      } else {
+        const bubble = document.createElement("div");
+        bubble.className = "message-bubble";
+        const p = document.createElement("p");
+        p.textContent = content;
+        bubble.appendChild(p);
+        msg.appendChild(bubble);
 
-      if (role === "assistant" && usageSummary) {
-        const usage = document.createElement("p");
-        usage.className = "usage-summary";
-        usage.textContent = `Retrieval: ${usageSummary.documents_selected} document(s) selected, ${usageSummary.retrieved_chunks} chunk(s) used, about ${usageSummary.estimated_context_tokens} context tokens sent to the LLM. Potential context reduction versus the unfiltered maximum: ${usageSummary.potential_context_token_reduction_percent}%.`;
-        message.appendChild(usage);
+        if (role === "assistant" && meta) {
+          if (meta.usage) {
+            const u = meta.usage;
+            const bar = document.createElement("div");
+            bar.className = "usage-bar";
+            const filtered = meta.filterApplied;
+            bar.innerHTML = `
+              <span class="usage-tag ${filtered ? "filtered" : ""}">${filtered ? "Metadata filtered" : "Unfiltered search"}</span>
+              <span class="usage-tag">${u.documents_selected} doc${u.documents_selected !== 1 ? "s" : ""} matched</span>
+              <span class="usage-tag">${u.retrieved_chunks} chunk${u.retrieved_chunks !== 1 ? "s" : ""} retrieved</span>
+              <span class="usage-tag">~${u.estimated_context_tokens} ctx tokens</span>
+              <span class="usage-tag">${u.potential_context_token_reduction_percent}% context reduction</span>
+            `;
+            msg.appendChild(bar);
+          }
+
+          if (meta.citations && meta.citations.length > 0) {
+            const cites = document.createElement("div");
+            cites.className = "citations";
+            meta.citations.forEach((c) => {
+              const el = document.createElement("div");
+              el.className = "citation";
+              el.textContent = c.preview;
+              cites.appendChild(el);
+            });
+            msg.appendChild(cites);
+          }
+        }
       }
 
-      messages.appendChild(message);
+      messages.appendChild(msg);
       messages.scrollTop = messages.scrollHeight;
-      return message;
+      return msg;
     }
 
-    clearButton.addEventListener("click", () => {
+    function resetChat() {
       messages.innerHTML = "";
-      addMessage("assistant", "Ask a question about the documents you have uploaded.");
+      addMessage("assistant", "Ask me anything about the documents you have uploaded. I'll search the knowledge base and answer based on what I find.");
+    }
+
+    clearBtn.addEventListener("click", resetChat);
+
+    /* Auto-resize textarea */
+    input.addEventListener("input", () => {
+      input.style.height = "auto";
+      input.style.height = Math.min(input.scrollHeight, 140) + "px";
     });
 
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
-
-      if (!requireApiBase()) {
-        return;
+    /* Enter to submit, Shift+Enter for new line */
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        form.requestSubmit();
       }
+    });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!requireApiBase()) return;
 
       const question = input.value.trim();
-      if (!question) {
-        input.focus();
-        return;
-      }
+      if (!question) { input.focus(); return; }
 
       input.value = "";
+      input.style.height = "auto";
       addMessage("user", question);
-      const pending = addMessage("assistant", "Thinking through the retrieved document context...");
-      askButton.disabled = true;
+      const pending = addMessage("assistant", "__thinking__");
+      askBtn.disabled = true;
 
       try {
-        const response = await postJson("/query", {question});
+        const res = await postJson("/query", { question });
         pending.remove();
-        addMessage("assistant", response.answer || "No answer was returned.", response.usage_summary);
-      } catch (error) {
+        addMessage("assistant", res.answer || "No answer was returned.", {
+          usage: res.usage_summary,
+          filterApplied: res.metadata_filter_applied,
+          citations: res.citations,
+        });
+      } catch (err) {
         pending.remove();
-        addMessage("assistant", error.message || "The query failed.");
+        addMessage("assistant", err.message || "The query failed. Please try again.");
       } finally {
-        askButton.disabled = false;
+        askBtn.disabled = false;
         input.focus();
       }
     });
   }
 
+  /* ── Init ──────────────────────────────────── */
+
   document.addEventListener("DOMContentLoaded", () => {
     const page = document.body.dataset.page;
-
-    if (page === "upload") {
-      initUploadPage();
-    }
-
-    if (page === "chat") {
-      initChatPage();
-    }
+    if (page === "upload") initUploadPage();
+    if (page === "chat") initChatPage();
   });
 })();

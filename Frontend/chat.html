@@ -3,16 +3,16 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Aethon Ask</title>
+    <title>Aethon · Ask</title>
     <link rel="stylesheet" href="styles.css">
     <script src="config.js" defer></script>
     <script src="app.js" defer></script>
   </head>
   <body data-page="chat">
     <header class="topbar">
-      <a class="brand" href="index.html" aria-label="Aethon uploads">
+      <a class="brand" href="index.html" aria-label="Aethon home">
         <span class="brand-mark">A</span>
-        <span>Aethon</span>
+        <span class="brand-name">Aethon</span>
       </a>
       <nav class="nav" aria-label="Primary">
         <a class="nav-link" href="index.html">Upload</a>
@@ -20,34 +20,36 @@
       </nav>
     </header>
 
-    <main class="workspace chat-workspace">
-      <section class="intro-panel">
-        <p class="eyebrow">RAG question answering</p>
-        <h1>Ask your document memory.</h1>
-        <p class="lede">Aethon retrieves relevant Bedrock Knowledge Base context and drafts an answer with the connected LLM API.</p>
-      </section>
+    <div class="chat-layout">
+      <div class="chat-header">
+        <div>
+          <h1>Ask your documents</h1>
+          <p class="page-desc">Answers are drawn from your uploaded knowledge base.</p>
+        </div>
+        <button class="btn-ghost" id="clearChatButton" type="button">Clear chat</button>
+      </div>
 
-      <section class="chat-panel" aria-labelledby="chat-heading">
-        <div class="panel-head">
-          <div>
-            <p class="eyebrow">Chat</p>
-            <h2 id="chat-heading">Question answer</h2>
+      <div class="messages" id="messages" aria-live="polite">
+        <div class="message assistant">
+          <div class="message-bubble">
+            <p>Ask me anything about the documents you have uploaded. I'll search the knowledge base and answer based on what I find.</p>
           </div>
-          <button class="ghost-button" id="clearChatButton" type="button">Clear</button>
         </div>
+      </div>
 
-        <div class="messages" id="messages" aria-live="polite">
-          <article class="message assistant">
-            <p>Ask a question about the documents you have uploaded.</p>
-          </article>
+      <form class="composer" id="questionForm">
+        <label class="sr-only" for="questionInput">Your question</label>
+        <div class="composer-wrap">
+          <textarea id="questionInput" rows="1" placeholder="Ask a question about your documents…"></textarea>
+          <span class="composer-hint">Enter to send · Shift+Enter for new line</span>
         </div>
-
-        <form class="composer" id="questionForm">
-          <label class="sr-only" for="questionInput">Question</label>
-          <textarea id="questionInput" rows="3" placeholder="What should I know from these documents?"></textarea>
-          <button class="primary-button" id="askButton" type="submit">Ask</button>
-        </form>
-      </section>
-    </main>
+        <button class="btn-send" id="askButton" type="submit" aria-label="Send question">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"/>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+        </button>
+      </form>
+    </div>
   </body>
 </html>

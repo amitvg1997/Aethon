@@ -3,16 +3,16 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Aethon Uploads</title>
+    <title>Aethon · Upload</title>
     <link rel="stylesheet" href="styles.css">
     <script src="config.js" defer></script>
     <script src="app.js" defer></script>
   </head>
   <body data-page="upload">
     <header class="topbar">
-      <a class="brand" href="index.html" aria-label="Aethon uploads">
+      <a class="brand" href="index.html" aria-label="Aethon home">
         <span class="brand-mark">A</span>
-        <span>Aethon</span>
+        <span class="brand-name">Aethon</span>
       </a>
       <nav class="nav" aria-label="Primary">
         <a class="nav-link active" href="index.html">Upload</a>
@@ -20,35 +20,36 @@
       </nav>
     </header>
 
-    <main class="workspace upload-workspace">
-      <section class="intro-panel">
-        <p class="eyebrow">Document memory</p>
-        <h1>Feed the knowledge base.</h1>
-        <p class="lede">Drop in PDFs or document images and Aethon will route them to the private S3 upload bucket for extraction, metadata, and RAG ingestion.</p>
-      </section>
+    <main class="page upload-page">
+      <div class="page-header">
+        <h1>Upload documents</h1>
+        <p class="page-desc">PDF files are processed by OCR, metadata is extracted, and content is indexed for question answering.</p>
+      </div>
 
-      <section class="tool-panel" aria-labelledby="upload-heading">
-        <div class="panel-head">
-          <div>
-            <p class="eyebrow">Uploads</p>
-            <h2 id="upload-heading">Add documents</h2>
-          </div>
-          <button class="ghost-button" id="clearUploadsButton" type="button">Clear</button>
-        </div>
-
+      <div class="card">
         <label class="dropzone" id="dropzone">
-          <input id="fileInput" type="file" multiple>
-          <span class="drop-title">Choose files or drop them here</span>
-          <span class="drop-copy">Multiple files upload in parallel through short-lived S3 URLs.</span>
+          <input id="fileInput" type="file" multiple accept=".pdf">
+          <div class="drop-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+          </div>
+          <span class="drop-title">Drop PDF files here</span>
+          <span class="drop-hint">or click to browse</span>
         </label>
 
-        <div class="upload-actions">
-          <button class="primary-button" id="uploadButton" type="button" disabled>Upload selected files</button>
-          <p class="status-line" id="uploadStatus">No files selected.</p>
-        </div>
-
         <div class="file-list" id="fileList" aria-live="polite"></div>
-      </section>
+
+        <div class="upload-footer">
+          <span class="status-line" id="uploadStatus">No files selected</span>
+          <div class="upload-actions">
+            <button class="btn-ghost" id="clearUploadsButton" type="button">Clear</button>
+            <button class="btn-primary" id="uploadButton" type="button" disabled>Upload</button>
+          </div>
+        </div>
+      </div>
     </main>
   </body>
 </html>
