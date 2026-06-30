@@ -138,16 +138,15 @@ def _document_id_filter(document_ids):
     return filters[0] if len(filters) == 1 else {"orAll": filters}
 
 
-def _retrieve_context(question, document_ids):
+def _retrieve_context(question, document_ids=None):
+    vector_config = {"numberOfResults": MAX_RETRIEVAL_RESULTS}
+    if document_ids:
+        vector_config["filter"] = _document_id_filter(document_ids)
+
     response = bedrock_agent_runtime.retrieve(
         knowledgeBaseId=KNOWLEDGE_BASE_ID,
         retrievalQuery={"text": question},
-        retrievalConfiguration={
-            "vectorSearchConfiguration": {
-                "numberOfResults": MAX_RETRIEVAL_RESULTS,
-                "filter": _document_id_filter(document_ids),
-            },
-        },
+        retrievalConfiguration={"vectorSearchConfiguration": vector_config},
     )
 
     contexts = []
@@ -247,18 +246,11 @@ def lambda_handler(event, context):
 
     try:
         candidate_document_ids = _select_candidate_document_ids(question)
-        if not candidate_document_ids:
-            return _response(
-                200,
-                {
-                    "answer": "I don't know based on the uploaded documents.",
-                    "citations": [],
-                    "retrieved_count": 0,
-                    "usage_summary": _usage_summary([], []),
-                },
-            )
 
-        contexts = _retrieve_context(question, candidate_document_ids)
+        # Fall back to unfiltered retrieval when no DynamoDB candidates match —
+        # prevents recall collapse on ambiguous or short queries.
+        contexts = _retrieve_context(question, candidate_document_ids or None)
+
         if not contexts:
             return _response(
                 200,
@@ -288,6 +280,7 @@ def lambda_handler(event, context):
                 for context in contexts
             ],
             "retrieved_count": len(contexts),
+            "metadata_filter_applied": bool(candidate_document_ids),
             "usage_summary": _usage_summary(candidate_document_ids, contexts),
         },
     )

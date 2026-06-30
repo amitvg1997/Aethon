@@ -52,8 +52,3 @@ variable "knowledge_base_chunk_overlap_percentage" {
   default     = 20
 }
 
-variable "opensearch_index_admin_principal_arns" {
-  description = "IAM principal ARNs allowed to create and manage the OpenSearch Serverless vector index."
-  type        = list(string)
-  default     = []
-}

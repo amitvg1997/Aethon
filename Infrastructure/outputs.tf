@@ -58,12 +58,12 @@ output "knowledge_base_data_source_id" {
   value       = aws_bedrockagent_data_source.documents.data_source_id
 }
 
-output "opensearch_collection_endpoint" {
-  description = "OpenSearch Serverless collection endpoint backing the Knowledge Base."
-  value       = aws_opensearchserverless_collection.knowledge_base.collection_endpoint
+output "s3_vectors_bucket_name" {
+  description = "S3 Vectors vector bucket backing the Knowledge Base."
+  value       = aws_s3vectors_vector_bucket.knowledge_base.vector_bucket_name
 }
 
-output "opensearch_vector_index_name" {
-  description = "OpenSearch Serverless vector index used by the Knowledge Base."
-  value       = opensearch_index.knowledge_base.name
+output "s3_vectors_index_name" {
+  description = "S3 Vectors index used by the Knowledge Base."
+  value       = aws_s3vectors_index.knowledge_base.index_name
 }

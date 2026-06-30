@@ -61,11 +61,30 @@ data "aws_iam_policy_document" "bedrock_knowledge_base" {
     effect = "Allow"
 
     actions = [
-      "aoss:APIAccessAll",
+      "s3vectors:CreateIndex",
+      "s3vectors:DeleteIndex",
+      "s3vectors:DescribeIndex",
+      "s3vectors:PutVectors",
+      "s3vectors:GetVectors",
+      "s3vectors:DeleteVectors",
+      "s3vectors:QueryVectors",
+      "s3vectors:ListVectors",
     ]
 
     resources = [
-      aws_opensearchserverless_collection.knowledge_base.arn,
+      aws_s3vectors_index.knowledge_base.arn,
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "s3vectors:DescribeVectorBucket",
+    ]
+
+    resources = [
+      aws_s3vectors_vector_bucket.knowledge_base.arn,
     ]
   }
 }
@@ -89,24 +108,19 @@ resource "aws_bedrockagent_knowledge_base" "documents" {
   }
 
   storage_configuration {
-    type = "OPENSEARCH_SERVERLESS"
+    type = "S3_VECTORS"
 
-    opensearch_serverless_configuration {
-      collection_arn    = aws_opensearchserverless_collection.knowledge_base.arn
-      vector_index_name = opensearch_index.knowledge_base.name
-
-      field_mapping {
-        metadata_field = local.opensearch_metadata_field_name
-        text_field     = local.opensearch_text_field_name
-        vector_field   = local.opensearch_vector_field_name
-      }
+    s3_vectors_configuration {
+      index_arn      = aws_s3vectors_index.knowledge_base.arn
+      metadata_field = "AMAZON_BEDROCK_METADATA"
+      text_field     = "AMAZON_BEDROCK_TEXT_CHUNK"
+      vector_field   = "bedrock-knowledge-base-default-vector"
     }
   }
 
   depends_on = [
     aws_iam_role_policy.bedrock_knowledge_base,
-    aws_opensearchserverless_access_policy.knowledge_base,
-    opensearch_index.knowledge_base,
+    aws_s3vectors_index.knowledge_base,
   ]
 
   tags = {
