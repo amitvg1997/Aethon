@@ -315,8 +315,26 @@ def lambda_handler(event, context):
     processed_jobs = []
 
     for record in event.get("Records", []):
-        message = _parse_sns_message(record)
-        processed_jobs.append(_process_textract_completion(message))
+        message = None
+        try:
+            message = _parse_sns_message(record)
+            processed_jobs.append(_process_textract_completion(message))
+        except Exception as error:
+            # Isolate failures per-record: one bad message (e.g. a transient
+            # DeepSeek/Bedrock error) must not abort the whole invocation —
+            # that would leave other records in this batch unprocessed and,
+            # on Lambda's automatic retry, cause already-succeeded records to
+            # be reprocessed (duplicate LLM calls, duplicate ingestion jobs).
+            logger.exception("Failed to process Textract result record")
+            document_id = (message or {}).get("JobTag")
+            if document_id:
+                try:
+                    _mark_document_failed(document_id, f"Unhandled processing error: {error}")
+                except Exception:
+                    logger.exception("Failed to mark document %s as failed", document_id)
+            processed_jobs.append(
+                {"document_id": document_id, "status": "ERROR", "error": str(error)}
+            )
 
     return {
         "processed_count": len(processed_jobs),

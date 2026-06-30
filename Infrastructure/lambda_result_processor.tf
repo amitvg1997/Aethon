@@ -15,6 +15,10 @@ resource "aws_lambda_function" "result_processor" {
   filename         = data.archive_file.result_processor.output_path
   source_code_hash = data.archive_file.result_processor.output_base64sha256
 
+  dead_letter_config {
+    target_arn = aws_sqs_queue.result_processor_dlq.arn
+  }
+
   environment {
     variables = {
       DEEPSEEK_API_KEY_SECRET_ARN   = aws_secretsmanager_secret.deepseek_api_key.arn

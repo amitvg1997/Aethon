@@ -136,6 +136,28 @@ def _start_textract_job(item):
     return textract_job_id
 
 
+def _mark_upload_failed(object_key, message):
+    document_id = _document_id_from_key(object_key)
+    try:
+        table.update_item(
+            Key={"document_id": document_id},
+            UpdateExpression=(
+                "SET processing_status = :processing_status, "
+                "metadata_status = :metadata_status, "
+                "failure_reason = :failure_reason, "
+                "updated_at = :updated_at"
+            ),
+            ExpressionAttributeValues={
+                ":processing_status": "FAILED",
+                ":metadata_status": "FAILED",
+                ":failure_reason": message[:1000],
+                ":updated_at": _utc_now(),
+            },
+        )
+    except ClientError:
+        logger.exception("Failed to mark document %s as failed", document_id)
+
+
 def lambda_handler(event, context):
     logger.info("Received event: %s", json.dumps(event))
 
@@ -158,10 +180,19 @@ def lambda_handler(event, context):
             )
             continue
 
-        item = _build_initial_document_item(bucket_name, object_key)
-
-        write_status = _store_initial_document_record(item)
-        textract_job_id = _start_textract_job(item)
+        try:
+            item = _build_initial_document_item(bucket_name, object_key)
+            write_status = _store_initial_document_record(item)
+            textract_job_id = _start_textract_job(item)
+        except Exception as error:
+            # Isolate failures per-record: one bad upload (e.g. a transient
+            # Textract throttle) must not abort the whole batch and leave
+            # other uploads in this invocation unprocessed/duplicated on retry.
+            logger.exception(
+                "Failed to start processing for bucket=%s key=%s", bucket_name, object_key
+            )
+            _mark_upload_failed(object_key, f"Failed to start processing: {error}")
+            continue
 
         processed_documents.append(
             {

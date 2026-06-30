@@ -14,6 +14,10 @@ resource "aws_lambda_function" "memory_optimizer" {
   filename         = data.archive_file.memory_optimizer.output_path
   source_code_hash = data.archive_file.memory_optimizer.output_base64sha256
 
+  dead_letter_config {
+    target_arn = aws_sqs_queue.memory_optimizer_dlq.arn
+  }
+
   environment {
     variables = {
       DOCUMENTS_TABLE        = aws_dynamodb_table.documents.name

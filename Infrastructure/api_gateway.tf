@@ -31,6 +31,11 @@ resource "aws_apigatewayv2_integration" "query" {
   integration_type       = "AWS_PROXY"
   integration_uri        = aws_lambda_function.query.invoke_arn
   payload_format_version = "2.0"
+
+  # HTTP APIs hard-cap integration timeouts at 30000ms. The query Lambda
+  # (timeout 28s) must finish inside this window, otherwise API Gateway
+  # returns an opaque 504 to the client while the Lambda keeps running.
+  timeout_milliseconds = 29000
 }
 
 resource "aws_apigatewayv2_route" "query" {

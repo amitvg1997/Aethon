@@ -106,6 +106,18 @@ data "aws_iam_policy_document" "memory_optimizer" {
       aws_iam_role.textract_sns_publish.arn,
     ]
   }
+
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "sqs:SendMessage",
+    ]
+
+    resources = [
+      aws_sqs_queue.memory_optimizer_dlq.arn,
+    ]
+  }
 }
 
 resource "aws_iam_role_policy" "memory_optimizer" {
@@ -185,6 +197,18 @@ data "aws_iam_policy_document" "result_processor" {
     ]
 
     resources = ["*"]
+  }
+
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "sqs:SendMessage",
+    ]
+
+    resources = [
+      aws_sqs_queue.result_processor_dlq.arn,
+    ]
   }
 }
 

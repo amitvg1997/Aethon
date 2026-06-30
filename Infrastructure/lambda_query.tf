@@ -9,7 +9,7 @@ resource "aws_lambda_function" "query" {
   role          = aws_iam_role.query.arn
   handler       = "app.lambda_handler"
   runtime       = "python3.12"
-  timeout       = 90
+  timeout       = 28
   memory_size   = 512
 
   filename         = data.archive_file.query.output_path

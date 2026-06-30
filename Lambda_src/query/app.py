@@ -62,7 +62,7 @@ def _deepseek_request(payload):
     )
 
     try:
-        with urllib.request.urlopen(request, timeout=60) as response:
+        with urllib.request.urlopen(request, timeout=20) as response:
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as error:
         error_body = error.read().decode("utf-8", errors="replace")
