@@ -10,8 +10,3 @@ provider "aws" {
   }
 }
 
-provider "opensearch" {
-  url         = aws_opensearchserverless_collection.knowledge_base.collection_endpoint
-  healthcheck = false
-  aws_region  = var.aws_region
-}

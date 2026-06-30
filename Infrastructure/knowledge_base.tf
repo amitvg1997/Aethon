@@ -72,7 +72,7 @@ data "aws_iam_policy_document" "bedrock_knowledge_base" {
     ]
 
     resources = [
-      aws_s3vectors_index.knowledge_base.arn,
+      aws_s3vectors_index.knowledge_base.index_arn,
     ]
   }
 
@@ -84,7 +84,7 @@ data "aws_iam_policy_document" "bedrock_knowledge_base" {
     ]
 
     resources = [
-      aws_s3vectors_vector_bucket.knowledge_base.arn,
+      aws_s3vectors_vector_bucket.knowledge_base.vector_bucket_arn,
     ]
   }
 }
@@ -111,10 +111,7 @@ resource "aws_bedrockagent_knowledge_base" "documents" {
     type = "S3_VECTORS"
 
     s3_vectors_configuration {
-      index_arn      = aws_s3vectors_index.knowledge_base.arn
-      metadata_field = "AMAZON_BEDROCK_METADATA"
-      text_field     = "AMAZON_BEDROCK_TEXT_CHUNK"
-      vector_field   = "bedrock-knowledge-base-default-vector"
+      index_arn = aws_s3vectors_index.knowledge_base.index_arn
     }
   }
 

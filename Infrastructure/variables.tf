@@ -25,13 +25,13 @@ variable "allowed_cors_origins" {
 variable "deepseek_api_url" {
   description = "OpenAI-compatible chat completions endpoint used for metadata extraction."
   type        = string
-  default     = "https://api.groq.com/openai/v1/chat/completions"
+  default     = "https://api.eurouter.ai/api/v1/chat/completions"
 }
 
 variable "deepseek_model" {
   description = "Chat model used for document metadata extraction."
   type        = string
-  default     = "llama-3.3-70b-versatile"
+  default     = "deepseek-v3.2"
 }
 
 variable "embedding_model_id" {
