@@ -257,6 +257,9 @@ data "aws_iam_policy_document" "github_actions_deploy" {
       "s3vectors:DeleteVectors",
       "s3vectors:QueryVectors",
       "s3vectors:ListVectors",
+      "s3vectors:ListTagsForResource",
+      "s3vectors:TagResource",
+      "s3vectors:UntagResource",
     ]
 
     resources = ["*"]
