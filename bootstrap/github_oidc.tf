@@ -237,29 +237,26 @@ data "aws_iam_policy_document" "github_actions_deploy" {
   }
 
   statement {
-    sid    = "OpenSearchServerless"
+    sid    = "S3Vectors"
     effect = "Allow"
 
     actions = [
-      "aoss:APIAccessAll",
-      "aoss:BatchGetCollection",
-      "aoss:CreateAccessPolicy",
-      "aoss:CreateCollection",
-      "aoss:CreateSecurityPolicy",
-      "aoss:DeleteAccessPolicy",
-      "aoss:DeleteCollection",
-      "aoss:DeleteSecurityPolicy",
-      "aoss:GetAccessPolicy",
-      "aoss:GetSecurityPolicy",
-      "aoss:ListAccessPolicies",
-      "aoss:ListCollections",
-      "aoss:ListSecurityPolicies",
-      "aoss:TagResource",
-      "aoss:UntagResource",
-      "aoss:UpdateAccessPolicy",
-      "aoss:UpdateCollection",
-      "aoss:UpdateSecurityPolicy",
-      "aoss:ListTagsForResource",
+      "s3vectors:CreateVectorBucket",
+      "s3vectors:DeleteVectorBucket",
+      "s3vectors:GetVectorBucket",
+      "s3vectors:ListVectorBuckets",
+      "s3vectors:PutVectorBucketPolicy",
+      "s3vectors:GetVectorBucketPolicy",
+      "s3vectors:DeleteVectorBucketPolicy",
+      "s3vectors:CreateIndex",
+      "s3vectors:DeleteIndex",
+      "s3vectors:GetIndex",
+      "s3vectors:ListIndexes",
+      "s3vectors:PutVectors",
+      "s3vectors:GetVectors",
+      "s3vectors:DeleteVectors",
+      "s3vectors:QueryVectors",
+      "s3vectors:ListVectors",
     ]
 
     resources = ["*"]
@@ -349,23 +346,6 @@ data "aws_iam_policy_document" "github_actions_deploy" {
     resources = [
       "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.project_name}-${var.environment}-*",
     ]
-  }
-
-  statement {
-    sid    = "IamOpenSearchServerlessServiceLinkedRole"
-    effect = "Allow"
-
-    actions = [
-      "iam:CreateServiceLinkedRole",
-    ]
-
-    resources = ["*"]
-
-    condition {
-      test     = "StringEquals"
-      variable = "iam:AWSServiceName"
-      values   = ["observability.aoss.amazonaws.com"]
-    }
   }
 
   statement {
