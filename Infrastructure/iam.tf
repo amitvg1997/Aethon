@@ -309,6 +309,7 @@ data "aws_iam_policy_document" "eval" {
     actions = [
       "dynamodb:PutItem",
       "dynamodb:DeleteItem",
+      "dynamodb:BatchWriteItem",
       "dynamodb:Scan",
     ]
 
