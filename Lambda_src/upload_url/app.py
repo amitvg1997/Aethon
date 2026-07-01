@@ -6,11 +6,11 @@ from pathlib import PurePath
 import boto3
 from botocore.config import Config
 
-AWS_REGION = os.environ["AWS_REGION"]
+AETHON_AWS_REGION = os.environ["AETHON_AWS_REGION"]
 s3_client = boto3.client(
     "s3",
-    region_name=AWS_REGION,
-    endpoint_url=f"https://s3.{AWS_REGION}.amazonaws.com",
+    region_name=AETHON_AWS_REGION,
+    endpoint_url=f"https://s3.{AETHON_AWS_REGION}.amazonaws.com",
     config=Config(s3={"addressing_style": "virtual"}),
 )
 DOCUMENTS_BUCKET = os.environ["DOCUMENTS_BUCKET"]

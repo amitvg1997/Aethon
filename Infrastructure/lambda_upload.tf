@@ -15,8 +15,8 @@ resource "aws_lambda_function" "upload_url" {
 
   environment {
     variables = {
-      DOCUMENTS_BUCKET = aws_s3_bucket.documents.id
-      AWS_REGION       = var.aws_region
+      DOCUMENTS_BUCKET  = aws_s3_bucket.documents.id
+      AETHON_AWS_REGION = var.aws_region
     }
   }
 
