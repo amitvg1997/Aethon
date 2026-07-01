@@ -50,7 +50,11 @@
     const clearBtn   = document.getElementById("clearUploadsButton");
     const fileList   = document.getElementById("fileList");
     const statusLine = document.getElementById("uploadStatus");
+    const syncBtn    = document.getElementById("syncButton");
+    const refreshSyncBtn = document.getElementById("refreshSyncButton");
+    const syncStatus = document.getElementById("syncStatus");
     let files = [];
+    let syncPollTimer = null;
 
     const fileIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
 
@@ -113,6 +117,82 @@
       return upload.object_key;
     }
 
+    function renderSyncStatus(data) {
+      if (!syncStatus) return;
+
+      const counts = data.status_counts || {};
+      const readyCount = Number(data.ready_for_ingestion_count || 0);
+      const syncedCount = Number(counts.SYNCED || counts.COMPLETE || counts.COMPLETED || 0);
+      const metadataReadyCount = Number(counts.READY_FOR_INGESTION || 0);
+      const extractingCount =
+        Number(counts.PENDING || 0) +
+        Number(counts.TEXTRACT_IN_PROGRESS || 0) +
+        Number(counts.TEXTRACT_STARTED || 0);
+      const failedCount =
+        Number(counts.FAILED || 0) +
+        Number(counts.INGESTION_FAILED || 0);
+      const active = data.active_ingestion_job
+        ? data.active_ingestion_job.status || "running"
+        : null;
+
+      let message;
+      if (active) {
+        message = `Knowledge Base sync is ${active}. Wait until it completes before asking questions from the latest uploads.`;
+      } else if (readyCount > 0) {
+        message = `${readyCount} document${readyCount === 1 ? "" : "s"} have metadata ready and need Knowledge Base sync. Click "Sync Knowledge Base" before asking questions from the latest uploads.`;
+      } else if (syncedCount > 0 && extractingCount === 0 && failedCount === 0) {
+        message = `Knowledge Base is synced. You can now ask questions from ${syncedCount} indexed document${syncedCount === 1 ? "" : "s"}, including the latest synced uploads.`;
+      } else if (extractingCount > 0) {
+        message = `${extractingCount} document${extractingCount === 1 ? " is" : "s are"} still being processed. Wait for metadata extraction to finish, then sync the Knowledge Base.`;
+      } else {
+        message = "No synced documents found yet. Upload PDFs, wait for metadata extraction, then sync the Knowledge Base.";
+      }
+
+      const details = [];
+      if (metadataReadyCount > 0) details.push(`metadata ready: ${metadataReadyCount}`);
+      if (syncedCount > 0) details.push(`synced: ${syncedCount}`);
+      if (extractingCount > 0) details.push(`processing: ${extractingCount}`);
+      if (failedCount > 0) details.push(`failed: ${failedCount}`);
+
+      syncStatus.textContent = details.length ? `${message} (${details.join(", ")})` : message;
+
+      if (syncPollTimer && !active) {
+        window.clearInterval(syncPollTimer);
+        syncPollTimer = null;
+      }
+    }
+
+    async function refreshSyncStatus() {
+      if (!requireApiBase()) return;
+      if (refreshSyncBtn) refreshSyncBtn.disabled = true;
+      try {
+        const data = await getJson("/sync");
+        renderSyncStatus(data);
+      } catch (err) {
+        syncStatus.textContent = err.message || "Failed to load Knowledge Base sync status.";
+      } finally {
+        if (refreshSyncBtn) refreshSyncBtn.disabled = false;
+      }
+    }
+
+    async function startKnowledgeBaseSync() {
+      if (!requireApiBase()) return;
+      syncBtn.disabled = true;
+      syncStatus.textContent = "Starting Knowledge Base sync...";
+      try {
+        const data = await postJson("/sync", {});
+        syncStatus.textContent = data.message || "Knowledge Base sync request completed.";
+        await refreshSyncStatus();
+        if (!syncPollTimer) {
+          syncPollTimer = window.setInterval(refreshSyncStatus, 15000);
+        }
+      } catch (err) {
+        syncStatus.textContent = err.message || "Failed to start Knowledge Base sync.";
+      } finally {
+        syncBtn.disabled = false;
+      }
+    }
+
     fileInput.addEventListener("change", () => setFiles(fileInput.files));
 
     ["dragenter", "dragover"].forEach((e) =>
@@ -124,6 +204,8 @@
     dropzone.addEventListener("drop", (ev) => { ev.preventDefault(); setFiles(ev.dataTransfer.files); });
 
     clearBtn.addEventListener("click", () => { fileInput.value = ""; setFiles([]); });
+    if (syncBtn) syncBtn.addEventListener("click", startKnowledgeBaseSync);
+    if (refreshSyncBtn) refreshSyncBtn.addEventListener("click", refreshSyncStatus);
 
     uploadBtn.addEventListener("click", async () => {
       if (!requireApiBase() || files.length === 0) return;
@@ -142,11 +224,13 @@
 
       renderFiles(states);
       const uploaded = results.filter((r) => r.status === "fulfilled").length;
-      statusLine.textContent = `${uploaded} of ${files.length} file${files.length === 1 ? "" : "s"} uploaded`;
+      statusLine.textContent = `${uploaded} of ${files.length} file${files.length === 1 ? "" : "s"} uploaded. Metadata extraction may take a few minutes; refresh sync status before asking questions.`;
       uploadBtn.disabled = files.length === 0;
+      await refreshSyncStatus();
     });
 
     renderFiles();
+    refreshSyncStatus();
   }
 
   /* ── Chat page ─────────────────────────────── */

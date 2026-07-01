@@ -21,13 +21,11 @@ resource "aws_lambda_function" "result_processor" {
 
   environment {
     variables = {
-      DEEPSEEK_API_KEY_SECRET_ARN   = aws_secretsmanager_secret.deepseek_api_key.arn
-      DEEPSEEK_API_URL              = var.deepseek_api_url
-      DEEPSEEK_MODEL                = var.deepseek_model
-      DOCUMENTS_BUCKET              = aws_s3_bucket.documents.id
-      DOCUMENTS_TABLE               = aws_dynamodb_table.documents.name
-      KNOWLEDGE_BASE_DATA_SOURCE_ID = aws_bedrockagent_data_source.documents.data_source_id
-      KNOWLEDGE_BASE_ID             = aws_bedrockagent_knowledge_base.documents.id
+      DEEPSEEK_API_KEY_SECRET_ARN = aws_secretsmanager_secret.deepseek_api_key.arn
+      DEEPSEEK_API_URL            = var.deepseek_api_url
+      DEEPSEEK_MODEL              = var.deepseek_model
+      DOCUMENTS_BUCKET            = aws_s3_bucket.documents.id
+      DOCUMENTS_TABLE             = aws_dynamodb_table.documents.name
     }
   }
 

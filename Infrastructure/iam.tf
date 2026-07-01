@@ -192,17 +192,6 @@ data "aws_iam_policy_document" "result_processor" {
     effect = "Allow"
 
     actions = [
-      "bedrock:StartIngestionJob",
-      "bedrock:GetIngestionJob",
-    ]
-
-    resources = ["*"]
-  }
-
-  statement {
-    effect = "Allow"
-
-    actions = [
       "sqs:SendMessage",
     ]
 
@@ -216,6 +205,53 @@ resource "aws_iam_role_policy" "result_processor" {
   name   = "${var.project_name}-${var.environment}-result-processor"
   role   = aws_iam_role.result_processor.id
   policy = data.aws_iam_policy_document.result_processor.json
+}
+
+resource "aws_iam_role" "kb_sync" {
+  name               = "${var.project_name}-${var.environment}-kb-sync"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-kb-sync"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "kb_sync_logs" {
+  role       = aws_iam_role.kb_sync.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+data "aws_iam_policy_document" "kb_sync" {
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "dynamodb:Scan",
+      "dynamodb:UpdateItem",
+    ]
+
+    resources = [
+      aws_dynamodb_table.documents.arn,
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "bedrock:StartIngestionJob",
+      "bedrock:GetIngestionJob",
+      "bedrock:ListIngestionJobs",
+    ]
+
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role_policy" "kb_sync" {
+  name   = "${var.project_name}-${var.environment}-kb-sync"
+  role   = aws_iam_role.kb_sync.id
+  policy = data.aws_iam_policy_document.kb_sync.json
 }
 
 resource "aws_iam_role" "query" {

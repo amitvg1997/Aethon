@@ -25,6 +25,7 @@ KNOWLEDGE_BASE_CHUNK_MAX_TOKENS = int(
     os.environ.get("KNOWLEDGE_BASE_CHUNK_MAX_TOKENS", "500")
 )
 MAX_DOCUMENT_CANDIDATES = int(os.environ.get("MAX_DOCUMENT_CANDIDATES", "3"))
+SYNCED_KNOWLEDGE_BASE_STATUSES = {"SYNCED", "COMPLETE", "COMPLETED"}
 _deepseek_api_key = None
 table = dynamodb.Table(DOCUMENTS_TABLE)
 
@@ -116,6 +117,8 @@ def _select_candidate_document_ids(question):
     ranked_documents = []
     for item in items:
         if item.get("metadata_status") != "COMPLETED":
+            continue
+        if item.get("knowledge_base_status") not in SYNCED_KNOWLEDGE_BASE_STATUSES:
             continue
 
         document_id = item.get("document_id")

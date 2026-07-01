@@ -38,6 +38,11 @@ output "query_function_name" {
   value       = aws_lambda_function.query.function_name
 }
 
+output "kb_sync_function_name" {
+  description = "Name of the Lambda function used to start and check batch Knowledge Base ingestion."
+  value       = aws_lambda_function.kb_sync.function_name
+}
+
 output "eval_function_name" {
   description = "Name of the Lambda function used by the filtered-vs-unfiltered evaluation API."
   value       = aws_lambda_function.eval.function_name

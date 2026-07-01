@@ -315,6 +315,30 @@ h1, h2, p { margin: 0; }
   color: var(--muted);
 }
 
+.sync-card {
+  margin-top: 18px;
+  padding: 18px 20px;
+}
+
+.sync-copy h2 {
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.sync-copy p,
+.sync-status {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.sync-actions {
+  display: flex;
+  gap: 8px;
+  margin: 14px 0 10px;
+  flex-wrap: wrap;
+}
+
 /* ── Chat page ─────────────────────────────────── */
 
 .chat-layout {

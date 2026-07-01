@@ -16,15 +16,12 @@ dynamodb = boto3.resource("dynamodb")
 textract_client = boto3.client("textract")
 s3_client = boto3.client("s3")
 secrets_client = boto3.client("secretsmanager")
-bedrock_agent_client = boto3.client("bedrock-agent")
 
 DOCUMENTS_TABLE = os.environ["DOCUMENTS_TABLE"]
 DOCUMENTS_BUCKET = os.environ["DOCUMENTS_BUCKET"]
 DEEPSEEK_API_KEY_SECRET_ARN = os.environ["DEEPSEEK_API_KEY_SECRET_ARN"]
 DEEPSEEK_API_URL = os.environ["DEEPSEEK_API_URL"]
 DEEPSEEK_MODEL = os.environ["DEEPSEEK_MODEL"]
-KNOWLEDGE_BASE_ID = os.environ["KNOWLEDGE_BASE_ID"]
-KNOWLEDGE_BASE_DATA_SOURCE_ID = os.environ["KNOWLEDGE_BASE_DATA_SOURCE_ID"]
 TEXT_PREVIEW_LIMIT = 3000
 LLM_INPUT_LIMIT = 18000
 
@@ -236,6 +233,7 @@ def _update_document_metadata(
             "document_type = :document_type, "
             "processing_status = :processing_status, "
             "metadata_status = :metadata_status, "
+            "knowledge_base_status = :knowledge_base_status, "
             "updated_at = :updated_at"
         ),
         ExpressionAttributeValues={
@@ -250,41 +248,10 @@ def _update_document_metadata(
             ":document_type": metadata["document_type"],
             ":processing_status": "METADATA_EXTRACTED",
             ":metadata_status": "COMPLETED",
+            ":knowledge_base_status": "READY_FOR_INGESTION",
             ":updated_at": _utc_now(),
         },
     )
-
-
-def _start_knowledge_base_ingestion(document_id):
-    response = bedrock_agent_client.start_ingestion_job(
-        knowledgeBaseId=KNOWLEDGE_BASE_ID,
-        dataSourceId=KNOWLEDGE_BASE_DATA_SOURCE_ID,
-        description=f"Ingest document {document_id}",
-    )
-
-    ingestion_job = response["ingestionJob"]
-    ingestion_job_id = ingestion_job["ingestionJobId"]
-    ingestion_status = ingestion_job["status"]
-
-    table.update_item(
-        Key={"document_id": document_id},
-        UpdateExpression=(
-            "SET knowledge_base_id = :knowledge_base_id, "
-            "knowledge_base_data_source_id = :knowledge_base_data_source_id, "
-            "knowledge_base_ingestion_job_id = :knowledge_base_ingestion_job_id, "
-            "knowledge_base_status = :knowledge_base_status, "
-            "updated_at = :updated_at"
-        ),
-        ExpressionAttributeValues={
-            ":knowledge_base_id": KNOWLEDGE_BASE_ID,
-            ":knowledge_base_data_source_id": KNOWLEDGE_BASE_DATA_SOURCE_ID,
-            ":knowledge_base_ingestion_job_id": ingestion_job_id,
-            ":knowledge_base_status": ingestion_status,
-            ":updated_at": _utc_now(),
-        },
-    )
-
-    return ingestion_job_id, ingestion_status
 
 
 def _process_textract_completion(message):
@@ -312,15 +279,10 @@ def _process_textract_completion(message):
         text_preview=extracted_text[:TEXT_PREVIEW_LIMIT],
         metadata=metadata,
     )
-    knowledge_base_ingestion_job_id, knowledge_base_status = _start_knowledge_base_ingestion(
-        document_id
-    )
-
     return {
         "document_id": document_id,
         "textract_job_id": job_id,
-        "knowledge_base_ingestion_job_id": knowledge_base_ingestion_job_id,
-        "knowledge_base_status": knowledge_base_status,
+        "knowledge_base_status": "READY_FOR_INGESTION",
         "status": "METADATA_EXTRACTED",
     }
 

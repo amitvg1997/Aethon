@@ -45,6 +45,29 @@ resource "aws_apigatewayv2_route" "query" {
   target    = "integrations/${aws_apigatewayv2_integration.query.id}"
 }
 
+resource "aws_apigatewayv2_integration" "kb_sync" {
+  api_id = aws_apigatewayv2_api.uploads.id
+
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.kb_sync.invoke_arn
+  payload_format_version = "2.0"
+  timeout_milliseconds   = 29000
+}
+
+resource "aws_apigatewayv2_route" "start_kb_sync" {
+  api_id = aws_apigatewayv2_api.uploads.id
+
+  route_key = "POST /sync"
+  target    = "integrations/${aws_apigatewayv2_integration.kb_sync.id}"
+}
+
+resource "aws_apigatewayv2_route" "get_kb_sync_status" {
+  api_id = aws_apigatewayv2_api.uploads.id
+
+  route_key = "GET /sync"
+  target    = "integrations/${aws_apigatewayv2_integration.kb_sync.id}"
+}
+
 resource "aws_apigatewayv2_stage" "default" {
   api_id = aws_apigatewayv2_api.uploads.id
 
@@ -98,6 +121,14 @@ resource "aws_lambda_permission" "api_gateway_query" {
   statement_id  = "AllowApiGatewayInvoke"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.query.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.uploads.execution_arn}/*/*"
+}
+
+resource "aws_lambda_permission" "api_gateway_kb_sync" {
+  statement_id  = "AllowApiGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.kb_sync.function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.uploads.execution_arn}/*/*"
 }

@@ -51,6 +51,18 @@
           </div>
         </div>
       </div>
+
+      <div class="card sync-card">
+        <div class="sync-copy">
+          <h2>Knowledge Base sync</h2>
+          <p>After uploaded files finish metadata extraction, start one batch sync so Bedrock indexes all ready PDFs together.</p>
+        </div>
+        <div class="sync-actions">
+          <button class="btn-ghost" id="refreshSyncButton" type="button">Refresh status</button>
+          <button class="btn-primary" id="syncButton" type="button">Sync Knowledge Base</button>
+        </div>
+        <div class="sync-status" id="syncStatus">Sync status not loaded yet.</div>
+      </div>
     </main>
   </body>
 </html>
