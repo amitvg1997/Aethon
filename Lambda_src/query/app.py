@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import re
+import socket
 import urllib.error
 import urllib.request
 
@@ -26,6 +27,7 @@ KNOWLEDGE_BASE_CHUNK_MAX_TOKENS = int(
 )
 MAX_DOCUMENT_CANDIDATES = int(os.environ.get("MAX_DOCUMENT_CANDIDATES", "3"))
 SYNCED_KNOWLEDGE_BASE_STATUSES = {"SYNCED", "COMPLETE", "COMPLETED"}
+LLM_REQUEST_TIMEOUT_SECONDS = int(os.environ.get("LLM_REQUEST_TIMEOUT_SECONDS", "12"))
 _deepseek_api_key = None
 table = dynamodb.Table(DOCUMENTS_TABLE)
 
@@ -63,11 +65,13 @@ def _deepseek_request(payload):
     )
 
     try:
-        with urllib.request.urlopen(request, timeout=20) as response:
+        with urllib.request.urlopen(request, timeout=LLM_REQUEST_TIMEOUT_SECONDS) as response:
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as error:
         error_body = error.read().decode("utf-8", errors="replace")
         raise RuntimeError(f"DeepSeek API request failed: {error.code} {error_body}") from error
+    except (TimeoutError, socket.timeout, urllib.error.URLError) as error:
+        raise RuntimeError("The LLM API request timed out. Please try again.") from error
 
 
 def _question_terms(question):
@@ -227,7 +231,7 @@ Document context:
             ],
             "stream": False,
             "temperature": 0.2,
-            "max_tokens": 1800,
+            "max_tokens": 900,
         }
     )
 
@@ -250,9 +254,19 @@ def lambda_handler(event, context):
     try:
         candidate_document_ids = _select_candidate_document_ids(question)
 
-        # Fall back to unfiltered retrieval when no DynamoDB candidates match —
-        # prevents recall collapse on ambiguous or short queries.
-        contexts = _retrieve_context(question, candidate_document_ids or None)
+        if not candidate_document_ids:
+            return _response(
+                200,
+                {
+                    "answer": "I don't know based on the uploaded documents.",
+                    "citations": [],
+                    "retrieved_count": 0,
+                    "metadata_filter_applied": False,
+                    "usage_summary": _usage_summary([], []),
+                },
+            )
+
+        contexts = _retrieve_context(question, candidate_document_ids)
 
         if not contexts:
             return _response(

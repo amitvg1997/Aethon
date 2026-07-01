@@ -22,9 +22,10 @@ resource "aws_lambda_function" "query" {
       DEEPSEEK_API_URL                = var.deepseek_api_url
       DEEPSEEK_MODEL                  = var.deepseek_model
       KNOWLEDGE_BASE_ID               = aws_bedrockagent_knowledge_base.documents.id
-      MAX_RETRIEVAL_RESULTS           = "5"
+      MAX_RETRIEVAL_RESULTS           = "3"
       KNOWLEDGE_BASE_CHUNK_MAX_TOKENS = tostring(var.knowledge_base_chunk_max_tokens)
       MAX_DOCUMENT_CANDIDATES         = "3"
+      LLM_REQUEST_TIMEOUT_SECONDS     = "12"
     }
   }
 
