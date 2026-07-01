@@ -148,4 +148,12 @@ resource "aws_bedrockagent_data_source" "documents" {
       }
     }
   }
+
+  # knowledge_base_id isn't treated as ForceNew by the provider, but Bedrock
+  # data sources can't be moved between knowledge bases — an in-place update
+  # 404s. Force a replace whenever the parent KB is replaced (e.g. the
+  # vector index config changes) instead of attempting an impossible update.
+  lifecycle {
+    replace_triggered_by = [aws_bedrockagent_knowledge_base.documents.id]
+  }
 }
