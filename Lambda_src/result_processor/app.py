@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
@@ -128,10 +129,26 @@ def _deepseek_request(payload):
         raise RuntimeError(f"DeepSeek API request failed: {error.code} {error_body}") from error
 
 
+def _extract_json_object(content):
+    content = content.strip()
+
+    fenced_match = re.search(r"```(?:json)?\s*(\{.*\})\s*```", content, re.DOTALL)
+    if fenced_match:
+        content = fenced_match.group(1)
+    elif not content.startswith("{"):
+        # Some models prose-wrap the JSON even when asked not to; fall back
+        # to the outermost {...} span rather than failing the whole document.
+        brace_match = re.search(r"\{.*\}", content, re.DOTALL)
+        if brace_match:
+            content = brace_match.group(0)
+
+    return json.loads(content)
+
+
 def _extract_metadata_with_deepseek(extracted_text):
     system_prompt = """
 You are Aethon's document memory metadata extractor.
-Return only valid json.
+Return only valid json, with no markdown code fences and no commentary.
 Do not invent information that is not supported by the document text.
 """.strip()
 
@@ -158,7 +175,6 @@ Document text:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            "response_format": {"type": "json_object"},
             "stream": False,
             "temperature": 0,
             "max_tokens": 1500,
@@ -166,7 +182,7 @@ Document text:
     )
 
     content = response["choices"][0]["message"]["content"]
-    metadata = json.loads(content)
+    metadata = _extract_json_object(content)
 
     return {
         "title": str(metadata.get("title", "")).strip(),
