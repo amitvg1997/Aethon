@@ -27,6 +27,13 @@
     return body;
   }
 
+  async function getJson(path) {
+    const res = await fetch(`${apiBaseUrl}${path}`, { method: "GET" });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.message || `Request failed with status ${res.status}`);
+    return body;
+  }
+
   /* ── Upload page ───────────────────────────── */
 
   function initUploadPage() {
@@ -245,11 +252,168 @@
     });
   }
 
+  /* ── Evaluate page ─────────────────────────── */
+
+  function initEvalPage() {
+    const form           = document.getElementById("evalForm");
+    const questionInput  = document.getElementById("evalQuestion");
+    const expectedInput  = document.getElementById("evalExpectedDoc");
+    const runBtn         = document.getElementById("runEvalButton");
+    const statusLine     = document.getElementById("evalStatus");
+    const compareSection = document.getElementById("evalCompare");
+    const summaryLine    = document.getElementById("evalSummary");
+    const tableBody      = document.getElementById("evalTableBody");
+    const emptyState     = document.getElementById("evalEmptyState");
+
+    function hitClass(hit) {
+      if (hit === null || hit === undefined) return "";
+      return hit ? "hit" : "miss";
+    }
+
+    function hitLabel(hit) {
+      if (hit === null || hit === undefined) return "";
+      return hit ? "✓ hit" : "✗ miss";
+    }
+
+    function renderStats(target, mode, result) {
+      target.innerHTML = "";
+      const tags = [
+        mode === "filtered"
+          ? `${result.documents_selected} doc${result.documents_selected === 1 ? "" : "s"} scanned`
+          : null,
+        `${result.retrieved_chunks} chunk${result.retrieved_chunks === 1 ? "" : "s"} retrieved`,
+        `~${result.estimated_context_tokens} ctx tokens`,
+      ].filter(Boolean);
+
+      tags.forEach((label) => {
+        const span = document.createElement("span");
+        span.className = "usage-tag";
+        span.textContent = label;
+        target.appendChild(span);
+      });
+
+      if (result.correct_document_hit !== null && result.correct_document_hit !== undefined) {
+        const span = document.createElement("span");
+        span.className = `usage-tag ${hitClass(result.correct_document_hit)}`;
+        span.textContent = hitLabel(result.correct_document_hit);
+        target.appendChild(span);
+      }
+    }
+
+    function renderCitations(target, citations) {
+      target.innerHTML = "";
+      (citations || []).forEach((c) => {
+        const el = document.createElement("div");
+        el.className = "citation";
+        el.textContent = c.preview;
+        target.appendChild(el);
+      });
+    }
+
+    function renderComparison(record) {
+      compareSection.hidden = false;
+
+      renderStats(document.getElementById("unfilteredStats"), "unfiltered", record.unfiltered);
+      document.getElementById("unfilteredAnswer").textContent = record.unfiltered.answer;
+      renderCitations(document.getElementById("unfilteredCitations"), record.unfiltered.citations);
+
+      renderStats(document.getElementById("filteredStats"), "filtered", record.filtered);
+      document.getElementById("filteredAnswer").textContent = record.filtered.answer;
+      renderCitations(document.getElementById("filteredCitations"), record.filtered.citations);
+    }
+
+    function renderSummary(summary) {
+      if (!summary || !summary.count) {
+        summaryLine.textContent = "";
+        return;
+      }
+      const parts = [
+        `${summary.count} run${summary.count === 1 ? "" : "s"}`,
+        `avg ${summary.avg_context_token_reduction_percent}% context reduction`,
+      ];
+      if (summary.labeled_count > 0) {
+        const unfilteredRate = summary.unfiltered_hit_rate_percent ?? "–";
+        const filteredRate = summary.filtered_hit_rate_percent ?? "–";
+        parts.push(
+          `hit rate: unfiltered ${unfilteredRate}% vs filtered ${filteredRate}% (${summary.labeled_count} labeled)`
+        );
+      }
+      summaryLine.textContent = parts.join(" · ");
+    }
+
+    function renderHistory(results) {
+      tableBody.innerHTML = "";
+      emptyState.hidden = results.length > 0;
+
+      results.forEach((item) => {
+        const row = document.createElement("tr");
+        const cells = [
+          { text: item.question },
+          { text: String(item.filtered.documents_selected) },
+          { text: String(item.unfiltered.retrieved_chunks) },
+          { text: String(item.filtered.retrieved_chunks) },
+          { text: `${item.context_token_reduction_percent}%` },
+          { text: hitLabel(item.unfiltered.correct_document_hit) || "–", cls: hitClass(item.unfiltered.correct_document_hit) },
+          { text: hitLabel(item.filtered.correct_document_hit) || "–", cls: hitClass(item.filtered.correct_document_hit) },
+        ];
+
+        cells.forEach(({ text, cls }) => {
+          const td = document.createElement("td");
+          td.textContent = text;
+          if (cls) td.className = cls;
+          row.appendChild(td);
+        });
+
+        tableBody.appendChild(row);
+      });
+    }
+
+    async function loadHistory() {
+      try {
+        const data = await getJson("/eval");
+        renderSummary(data.summary);
+        renderHistory(data.results || []);
+      } catch (err) {
+        summaryLine.textContent = err.message || "Failed to load evaluation history.";
+      }
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!requireApiBase()) return;
+
+      const question = questionInput.value.trim();
+      if (!question) { questionInput.focus(); return; }
+
+      const expectedDocumentId = expectedInput.value.trim();
+
+      runBtn.disabled = true;
+      statusLine.textContent = "Running filtered and unfiltered retrieval…";
+
+      try {
+        const record = await postJson("/eval", {
+          question,
+          expected_document_id: expectedDocumentId || undefined,
+        });
+        renderComparison(record);
+        statusLine.textContent = "Done.";
+        await loadHistory();
+      } catch (err) {
+        statusLine.textContent = err.message || "Comparison failed. Please try again.";
+      } finally {
+        runBtn.disabled = false;
+      }
+    });
+
+    loadHistory();
+  }
+
   /* ── Init ──────────────────────────────────── */
 
   document.addEventListener("DOMContentLoaded", () => {
     const page = document.body.dataset.page;
     if (page === "upload") initUploadPage();
     if (page === "chat") initChatPage();
+    if (page === "eval") initEvalPage();
   });
 })();

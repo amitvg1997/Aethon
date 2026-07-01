@@ -275,3 +275,74 @@ resource "aws_iam_role_policy" "query" {
   role   = aws_iam_role.query.id
   policy = data.aws_iam_policy_document.query.json
 }
+
+resource "aws_iam_role" "eval" {
+  name               = "${var.project_name}-${var.environment}-eval"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-eval"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "eval_logs" {
+  role       = aws_iam_role.eval.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+data "aws_iam_policy_document" "eval" {
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "dynamodb:Scan",
+    ]
+
+    resources = [
+      aws_dynamodb_table.documents.arn,
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "dynamodb:PutItem",
+      "dynamodb:Scan",
+    ]
+
+    resources = [
+      aws_dynamodb_table.eval_results.arn,
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "bedrock:Retrieve",
+    ]
+
+    resources = [
+      aws_bedrockagent_knowledge_base.documents.arn,
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "secretsmanager:GetSecretValue",
+    ]
+
+    resources = [
+      aws_secretsmanager_secret.deepseek_api_key.arn,
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "eval" {
+  name   = "${var.project_name}-${var.environment}-eval"
+  role   = aws_iam_role.eval.id
+  policy = data.aws_iam_policy_document.eval.json
+}

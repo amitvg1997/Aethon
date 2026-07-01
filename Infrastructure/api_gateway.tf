@@ -4,7 +4,7 @@ resource "aws_apigatewayv2_api" "uploads" {
 
   cors_configuration {
     allow_origins = local.cors_allowed_origins
-    allow_methods = ["POST", "OPTIONS"]
+    allow_methods = ["GET", "POST", "OPTIONS"]
     allow_headers = ["content-type"]
     max_age       = 3000
   }
@@ -52,6 +52,33 @@ resource "aws_apigatewayv2_stage" "default" {
   auto_deploy = true
 }
 
+resource "aws_apigatewayv2_integration" "eval" {
+  api_id = aws_apigatewayv2_api.uploads.id
+
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.eval.invoke_arn
+  payload_format_version = "2.0"
+
+  # See the note on the query integration: HTTP APIs hard-cap integration
+  # timeouts at 30000ms, and the eval Lambda (timeout 28s) runs a filtered
+  # and unfiltered retrieval+answer pipeline concurrently to fit under it.
+  timeout_milliseconds = 29000
+}
+
+resource "aws_apigatewayv2_route" "run_eval" {
+  api_id = aws_apigatewayv2_api.uploads.id
+
+  route_key = "POST /eval"
+  target    = "integrations/${aws_apigatewayv2_integration.eval.id}"
+}
+
+resource "aws_apigatewayv2_route" "list_eval" {
+  api_id = aws_apigatewayv2_api.uploads.id
+
+  route_key = "GET /eval"
+  target    = "integrations/${aws_apigatewayv2_integration.eval.id}"
+}
+
 resource "aws_lambda_permission" "api_gateway_upload_url" {
   statement_id  = "AllowApiGatewayInvoke"
   action        = "lambda:InvokeFunction"
@@ -64,6 +91,14 @@ resource "aws_lambda_permission" "api_gateway_query" {
   statement_id  = "AllowApiGatewayInvoke"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.query.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.uploads.execution_arn}/*/*"
+}
+
+resource "aws_lambda_permission" "api_gateway_eval" {
+  statement_id  = "AllowApiGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.eval.function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.uploads.execution_arn}/*/*"
 }

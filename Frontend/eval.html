@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Aethon · Evaluate</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="config.js" defer></script>
+    <script src="app.js" defer></script>
+  </head>
+  <body data-page="eval">
+    <header class="topbar">
+      <a class="brand" href="index.html" aria-label="Aethon home">
+        <span class="brand-mark">A</span>
+        <span class="brand-name">Aethon</span>
+      </a>
+      <nav class="nav" aria-label="Primary">
+        <a class="nav-link" href="index.html">Upload</a>
+        <a class="nav-link" href="chat.html">Ask</a>
+        <a class="nav-link active" href="eval.html">Evaluate</a>
+      </nav>
+    </header>
+
+    <main class="page eval-page">
+      <div class="page-header">
+        <h1>Filtered vs. unfiltered retrieval</h1>
+        <p class="page-desc">Run a question through both retrieval paths side by side to see whether metadata filtering finds the right document and how much noisy context it cuts.</p>
+      </div>
+
+      <form class="card eval-form" id="evalForm">
+        <div class="field">
+          <label for="evalQuestion">Question</label>
+          <textarea id="evalQuestion" rows="2" placeholder="Ask a question that could match multiple similar or duplicate documents…" required></textarea>
+        </div>
+        <div class="field">
+          <label for="evalExpectedDoc">Expected document ID <span class="field-optional">(optional — enables hit/miss scoring)</span></label>
+          <input id="evalExpectedDoc" type="text" placeholder="e.g. 910e7a9d-b423-4cf3-88c7-f55883575cf2">
+        </div>
+        <div class="eval-form-footer">
+          <span class="status-line" id="evalStatus"></span>
+          <button class="btn-primary" id="runEvalButton" type="submit">Run comparison</button>
+        </div>
+      </form>
+
+      <section class="eval-compare" id="evalCompare" hidden>
+        <article class="eval-column">
+          <header class="eval-column-header">
+            <h2>Unfiltered <span class="tag-baseline">baseline</span></h2>
+          </header>
+          <div class="eval-stats" id="unfilteredStats"></div>
+          <p class="eval-answer" id="unfilteredAnswer"></p>
+          <div class="citations" id="unfilteredCitations"></div>
+        </article>
+        <article class="eval-column">
+          <header class="eval-column-header">
+            <h2>Filtered <span class="tag-filtered">Aethon</span></h2>
+          </header>
+          <div class="eval-stats" id="filteredStats"></div>
+          <p class="eval-answer" id="filteredAnswer"></p>
+          <div class="citations" id="filteredCitations"></div>
+        </article>
+      </section>
+
+      <section class="eval-history">
+        <div class="eval-history-header">
+          <h2>Run history</h2>
+          <span class="status-line" id="evalSummary"></span>
+        </div>
+        <div class="eval-table-wrap">
+          <table class="eval-table" id="evalTable">
+            <thead>
+              <tr>
+                <th>Question</th>
+                <th>Docs scanned</th>
+                <th>Unfiltered chunks</th>
+                <th>Filtered chunks</th>
+                <th>Context reduction</th>
+                <th>Unfiltered hit</th>
+                <th>Filtered hit</th>
+              </tr>
+            </thead>
+            <tbody id="evalTableBody"></tbody>
+          </table>
+          <p class="empty-state" id="evalEmptyState">No evaluation runs yet.</p>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

@@ -38,6 +38,11 @@ output "query_function_name" {
   value       = aws_lambda_function.query.function_name
 }
 
+output "eval_function_name" {
+  description = "Name of the Lambda function used by the filtered-vs-unfiltered evaluation API."
+  value       = aws_lambda_function.eval.function_name
+}
+
 output "textract_results_topic_arn" {
   description = "SNS topic ARN where Textract publishes async job completion events."
   value       = aws_sns_topic.textract_results.arn

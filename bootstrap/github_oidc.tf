@@ -160,6 +160,7 @@ data "aws_iam_policy_document" "github_actions_deploy" {
 
     resources = [
       "arn:aws:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${var.project_name}-${var.environment}-documents",
+      "arn:aws:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${var.project_name}-${var.environment}-eval-results",
     ]
   }
 
