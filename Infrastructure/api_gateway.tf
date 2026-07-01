@@ -4,7 +4,7 @@ resource "aws_apigatewayv2_api" "uploads" {
 
   cors_configuration {
     allow_origins = local.cors_allowed_origins
-    allow_methods = ["GET", "POST", "OPTIONS"]
+    allow_methods = ["GET", "POST", "DELETE", "OPTIONS"]
     allow_headers = ["content-type"]
     max_age       = 3000
   }
@@ -76,6 +76,13 @@ resource "aws_apigatewayv2_route" "list_eval" {
   api_id = aws_apigatewayv2_api.uploads.id
 
   route_key = "GET /eval"
+  target    = "integrations/${aws_apigatewayv2_integration.eval.id}"
+}
+
+resource "aws_apigatewayv2_route" "clear_eval" {
+  api_id = aws_apigatewayv2_api.uploads.id
+
+  route_key = "DELETE /eval"
   target    = "integrations/${aws_apigatewayv2_integration.eval.id}"
 }
 

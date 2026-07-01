@@ -381,6 +381,26 @@ def _handle_list():
     return _response(200, {"results": items, "summary": _summary(items)})
 
 
+def _handle_clear():
+    deleted = 0
+    response = eval_table.scan(ProjectionExpression="eval_id")
+
+    with eval_table.batch_writer() as batch:
+        while True:
+            for item in response.get("Items", []):
+                batch.delete_item(Key={"eval_id": item["eval_id"]})
+                deleted += 1
+
+            last_key = response.get("LastEvaluatedKey")
+            if not last_key:
+                break
+            response = eval_table.scan(
+                ProjectionExpression="eval_id", ExclusiveStartKey=last_key
+            )
+
+    return _response(200, {"deleted_count": deleted})
+
+
 def lambda_handler(event, context):
     logger.info("Received event: %s", json.dumps(event))
 
@@ -391,6 +411,8 @@ def lambda_handler(event, context):
             return _handle_run(event)
         if method == "GET":
             return _handle_list()
+        if method == "DELETE":
+            return _handle_clear()
         return _response(405, {"message": "Method not allowed."})
     except Exception as error:
         logger.exception("Eval request failed")

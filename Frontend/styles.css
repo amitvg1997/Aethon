@@ -657,15 +657,25 @@ h1, h2, p { margin: 0; }
 
 .eval-history-header {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 12px;
   margin-bottom: 12px;
 }
 
 .eval-history-header h2 {
   font-size: 16px;
   font-weight: 700;
+}
+
+.eval-history-spacer {
+  flex: 1;
+}
+
+.eval-history-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .eval-table-wrap {

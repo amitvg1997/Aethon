@@ -34,6 +34,13 @@
     return body;
   }
 
+  async function deleteJson(path) {
+    const res = await fetch(`${apiBaseUrl}${path}`, { method: "DELETE" });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.message || `Request failed with status ${res.status}`);
+    return body;
+  }
+
   /* ── Upload page ───────────────────────────── */
 
   function initUploadPage() {
@@ -264,6 +271,59 @@
     const summaryLine    = document.getElementById("evalSummary");
     const tableBody      = document.getElementById("evalTableBody");
     const emptyState     = document.getElementById("evalEmptyState");
+    const downloadBtn    = document.getElementById("downloadCsvButton");
+    const clearBtn       = document.getElementById("clearHistoryButton");
+    let latestResults    = [];
+
+    function csvEscape(value) {
+      const str = value === null || value === undefined ? "" : String(value);
+      return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+    }
+
+    function buildCsv(results) {
+      const headers = [
+        "eval_id", "created_at", "question", "expected_document_id",
+        "documents_selected",
+        "unfiltered_retrieved_chunks", "filtered_retrieved_chunks",
+        "unfiltered_context_tokens", "filtered_context_tokens",
+        "context_token_reduction_percent",
+        "unfiltered_correct_document_hit", "filtered_correct_document_hit",
+        "unfiltered_answer", "filtered_answer",
+      ];
+
+      const rows = results.map((item) => [
+        item.eval_id,
+        item.created_at,
+        item.question,
+        item.expected_document_id ?? "",
+        item.filtered.documents_selected,
+        item.unfiltered.retrieved_chunks,
+        item.filtered.retrieved_chunks,
+        item.unfiltered.estimated_context_tokens,
+        item.filtered.estimated_context_tokens,
+        item.context_token_reduction_percent,
+        item.unfiltered.correct_document_hit ?? "",
+        item.filtered.correct_document_hit ?? "",
+        item.unfiltered.answer,
+        item.filtered.answer,
+      ]);
+
+      return [headers, ...rows].map((row) => row.map(csvEscape).join(",")).join("\r\n");
+    }
+
+    function downloadCsv(results) {
+      const csv = buildCsv(results);
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `aethon-eval-results-${stamp}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
 
     function hitClass(hit) {
       if (hit === null || hit === undefined) return "";
@@ -344,6 +404,8 @@
     function renderHistory(results) {
       tableBody.innerHTML = "";
       emptyState.hidden = results.length > 0;
+      downloadBtn.disabled = results.length === 0;
+      clearBtn.disabled = results.length === 0;
 
       results.forEach((item) => {
         const row = document.createElement("tr");
@@ -371,12 +433,36 @@
     async function loadHistory() {
       try {
         const data = await getJson("/eval");
+        latestResults = data.results || [];
         renderSummary(data.summary);
-        renderHistory(data.results || []);
+        renderHistory(latestResults);
       } catch (err) {
         summaryLine.textContent = err.message || "Failed to load evaluation history.";
       }
     }
+
+    downloadBtn.addEventListener("click", () => {
+      if (latestResults.length === 0) return;
+      downloadCsv(latestResults);
+    });
+
+    clearBtn.addEventListener("click", async () => {
+      if (latestResults.length === 0) return;
+      const confirmed = window.confirm(
+        `Delete all ${latestResults.length} evaluation run${latestResults.length === 1 ? "" : "s"}? This cannot be undone.`
+      );
+      if (!confirmed) return;
+
+      clearBtn.disabled = true;
+      try {
+        await deleteJson("/eval");
+        await loadHistory();
+      } catch (err) {
+        summaryLine.textContent = err.message || "Failed to clear evaluation history.";
+      } finally {
+        clearBtn.disabled = latestResults.length === 0;
+      }
+    });
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
