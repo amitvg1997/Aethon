@@ -18,10 +18,14 @@ KNOWLEDGE_BASE_ID = os.environ["KNOWLEDGE_BASE_ID"]
 KNOWLEDGE_BASE_DATA_SOURCE_ID = os.environ["KNOWLEDGE_BASE_DATA_SOURCE_ID"]
 
 READY_STATUSES = {"READY_FOR_INGESTION", "INGESTION_RETRY_REQUIRED"}
-TRACKED_STATUSES = {"INGESTION_STARTED", "INGESTION_IN_PROGRESS"}
 ACTIVE_JOB_STATUSES = {"STARTING", "IN_PROGRESS", "STOPPING"}
 SUCCESS_JOB_STATUSES = {"COMPLETE", "COMPLETED"}
 FAILED_JOB_STATUSES = {"FAILED", "STOPPED"}
+# Documents can carry either our own tracking labels or, from an older
+# pipeline version, the raw Bedrock ingestion job status string directly —
+# both need to be picked up here or they're stuck forever, never refreshed
+# to SYNCED even after the underlying job actually completes.
+TRACKED_STATUSES = {"INGESTION_STARTED", "INGESTION_IN_PROGRESS"} | ACTIVE_JOB_STATUSES
 
 table = dynamodb.Table(DOCUMENTS_TABLE)
 

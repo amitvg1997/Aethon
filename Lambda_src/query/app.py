@@ -254,19 +254,10 @@ def lambda_handler(event, context):
     try:
         candidate_document_ids = _select_candidate_document_ids(question)
 
-        if not candidate_document_ids:
-            return _response(
-                200,
-                {
-                    "answer": "I don't know based on the uploaded documents.",
-                    "citations": [],
-                    "retrieved_count": 0,
-                    "metadata_filter_applied": False,
-                    "usage_summary": _usage_summary([], []),
-                },
-            )
-
-        contexts = _retrieve_context(question, candidate_document_ids)
+        # Fall back to unfiltered retrieval when no DynamoDB candidates match —
+        # prevents recall collapse on ambiguous/short queries, or when a
+        # document's knowledge_base_status hasn't caught up to SYNCED yet.
+        contexts = _retrieve_context(question, candidate_document_ids or None)
 
         if not contexts:
             return _response(
@@ -275,6 +266,7 @@ def lambda_handler(event, context):
                     "answer": "I don't know based on the uploaded documents.",
                     "citations": [],
                     "retrieved_count": 0,
+                    "metadata_filter_applied": bool(candidate_document_ids),
                     "usage_summary": _usage_summary(candidate_document_ids, []),
                 },
             )
