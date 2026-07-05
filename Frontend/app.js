@@ -131,6 +131,7 @@
       const failedCount =
         Number(counts.FAILED || 0) +
         Number(counts.INGESTION_FAILED || 0);
+      const duplicateCount = Number(counts.SKIPPED_DUPLICATE || 0);
       const active = data.active_ingestion_job
         ? data.active_ingestion_job.status || "running"
         : null;
@@ -152,6 +153,7 @@
       if (metadataReadyCount > 0) details.push(`metadata ready: ${metadataReadyCount}`);
       if (syncedCount > 0) details.push(`synced: ${syncedCount}`);
       if (extractingCount > 0) details.push(`processing: ${extractingCount}`);
+      if (duplicateCount > 0) details.push(`duplicates skipped: ${duplicateCount}`);
       if (failedCount > 0) details.push(`failed: ${failedCount}`);
 
       syncStatus.textContent = details.length ? `${message} (${details.join(", ")})` : message;
@@ -267,9 +269,27 @@
               <span class="usage-tag">${u.documents_selected} doc${u.documents_selected !== 1 ? "s" : ""} matched</span>
               <span class="usage-tag">${u.retrieved_chunks} chunk${u.retrieved_chunks !== 1 ? "s" : ""} retrieved</span>
               <span class="usage-tag">~${u.estimated_context_tokens} ctx tokens</span>
-              <span class="usage-tag">${u.potential_context_token_reduction_percent}% context reduction</span>
+              <span class="usage-tag">${u.unique_source_documents} source doc${u.unique_source_documents !== 1 ? "s" : ""}</span>
             `;
             msg.appendChild(bar);
+          }
+
+          /* Router explainability: which documents the metadata filter
+             selected, with their match scores and matched terms. */
+          if (meta.selected && meta.selected.length > 0) {
+            const routerBar = document.createElement("div");
+            routerBar.className = "usage-bar";
+            meta.selected.forEach((doc) => {
+              const tag = document.createElement("span");
+              tag.className = "usage-tag filtered";
+              const score = Number(doc.score);
+              tag.textContent = `→ ${doc.title || doc.document_id}${Number.isFinite(score) ? ` · ${score.toFixed(2)}` : ""}`;
+              if (doc.matched_terms && doc.matched_terms.length > 0) {
+                tag.title = `matched terms: ${doc.matched_terms.join(", ")}`;
+              }
+              routerBar.appendChild(tag);
+            });
+            msg.appendChild(routerBar);
           }
 
           if (meta.citations && meta.citations.length > 0) {
@@ -331,6 +351,7 @@
         addMessage("assistant", res.answer || "No answer was returned.", {
           usage: res.usage_summary,
           filterApplied: res.metadata_filter_applied,
+          selected: res.selected_documents,
           citations: res.citations,
         });
       } catch (err) {
@@ -349,6 +370,7 @@
     const form           = document.getElementById("evalForm");
     const questionInput  = document.getElementById("evalQuestion");
     const expectedInput  = document.getElementById("evalExpectedDoc");
+    const expectedAnswerInput = document.getElementById("evalExpectedAnswer");
     const runBtn         = document.getElementById("runEvalButton");
     const statusLine     = document.getElementById("evalStatus");
     const compareSection = document.getElementById("evalCompare");
@@ -357,7 +379,23 @@
     const emptyState     = document.getElementById("evalEmptyState");
     const downloadBtn    = document.getElementById("downloadCsvButton");
     const clearBtn       = document.getElementById("clearHistoryButton");
+    const testsetInput   = document.getElementById("testsetFile");
+    const runBatchBtn    = document.getElementById("runBatchButton");
+    const batchStatus    = document.getElementById("batchStatus");
     let latestResults    = [];
+
+    const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    /* The expected-document field accepts either a document ID (UUID) or the
+       uploaded filename; filenames keep labeled test sets portable across
+       re-uploads (document IDs change every upload). */
+    function expectedDocumentPayload(value) {
+      const trimmed = String(value || "").trim();
+      if (!trimmed) return {};
+      return UUID_PATTERN.test(trimmed)
+        ? { expected_document_id: trimmed }
+        : { expected_document_filename: trimmed };
+    }
 
     function csvEscape(value) {
       const str = value === null || value === undefined ? "" : String(value);
@@ -366,12 +404,18 @@
 
     function buildCsv(results) {
       const headers = [
-        "eval_id", "created_at", "question", "expected_document_id",
+        "eval_id", "created_at", "question",
+        "expected_document_id", "expected_document_filename", "expected_answer",
         "documents_selected",
         "unfiltered_retrieved_chunks", "filtered_retrieved_chunks",
         "unfiltered_context_tokens", "filtered_context_tokens",
         "context_token_reduction_percent",
+        "unfiltered_unique_source_documents", "filtered_unique_source_documents",
+        "unfiltered_context_precision", "filtered_context_precision",
+        "unfiltered_reciprocal_rank", "filtered_reciprocal_rank",
         "unfiltered_correct_document_hit", "filtered_correct_document_hit",
+        "unfiltered_answer_verdict", "filtered_answer_verdict",
+        "unfiltered_total_ms", "filtered_total_ms",
         "unfiltered_answer", "filtered_answer",
       ];
 
@@ -380,14 +424,26 @@
         item.created_at,
         item.question,
         item.expected_document_id ?? "",
+        item.expected_document_filename ?? "",
+        item.expected_answer ?? "",
         item.filtered.documents_selected,
         item.unfiltered.retrieved_chunks,
         item.filtered.retrieved_chunks,
         item.unfiltered.estimated_context_tokens,
         item.filtered.estimated_context_tokens,
         item.context_token_reduction_percent,
+        item.unfiltered.unique_source_documents ?? "",
+        item.filtered.unique_source_documents ?? "",
+        item.unfiltered.context_precision ?? "",
+        item.filtered.context_precision ?? "",
+        item.unfiltered.reciprocal_rank ?? "",
+        item.filtered.reciprocal_rank ?? "",
         item.unfiltered.correct_document_hit ?? "",
         item.filtered.correct_document_hit ?? "",
+        item.unfiltered.answer_verdict ?? "",
+        item.filtered.answer_verdict ?? "",
+        item.unfiltered.total_ms ?? "",
+        item.filtered.total_ms ?? "",
         item.unfiltered.answer,
         item.filtered.answer,
       ]);
@@ -419,28 +475,67 @@
       return hit ? "✓ hit" : "✗ miss";
     }
 
+    function verdictClass(verdict) {
+      if (verdict === "correct") return "hit";
+      if (verdict === "incorrect") return "miss";
+      return "";
+    }
+
+    function verdictLabel(verdict) {
+      if (verdict === "correct") return "✓ correct";
+      if (verdict === "partially_correct") return "~ partial";
+      if (verdict === "incorrect") return "✗ incorrect";
+      return "";
+    }
+
+    function isSet(value) {
+      return value !== null && value !== undefined;
+    }
+
     function renderStats(target, mode, result) {
       target.innerHTML = "";
-      const tags = [
-        mode === "filtered"
-          ? `${result.documents_selected} doc${result.documents_selected === 1 ? "" : "s"} scanned`
-          : null,
-        `${result.retrieved_chunks} chunk${result.retrieved_chunks === 1 ? "" : "s"} retrieved`,
-        `~${result.estimated_context_tokens} ctx tokens`,
-      ].filter(Boolean);
 
-      tags.forEach((label) => {
+      function addTag(label, cls, tooltip) {
         const span = document.createElement("span");
-        span.className = "usage-tag";
+        span.className = `usage-tag${cls ? ` ${cls}` : ""}`;
         span.textContent = label;
+        if (tooltip) span.title = tooltip;
         target.appendChild(span);
-      });
+      }
 
-      if (result.correct_document_hit !== null && result.correct_document_hit !== undefined) {
-        const span = document.createElement("span");
-        span.className = `usage-tag ${hitClass(result.correct_document_hit)}`;
-        span.textContent = hitLabel(result.correct_document_hit);
-        target.appendChild(span);
+      if (mode === "filtered") {
+        addTag(`${result.documents_selected} doc${result.documents_selected === 1 ? "" : "s"} selected`);
+      }
+      addTag(`${result.retrieved_chunks} chunk${result.retrieved_chunks === 1 ? "" : "s"} retrieved`);
+      addTag(`~${result.estimated_context_tokens} ctx tokens`);
+      if (isSet(result.unique_source_documents)) {
+        addTag(`${result.unique_source_documents} source doc${result.unique_source_documents === 1 ? "" : "s"}`);
+      }
+      if (isSet(result.context_precision)) {
+        addTag(
+          `precision ${Math.round(result.context_precision * 100)}%`,
+          "",
+          "Share of retrieved chunks that come from the expected document"
+        );
+      }
+      if (isSet(result.distractor_chunks) && result.distractor_chunks > 0) {
+        addTag(`${result.distractor_chunks} distractor chunk${result.distractor_chunks === 1 ? "" : "s"}`, "miss");
+      }
+      if (isSet(result.first_relevant_rank)) {
+        addTag(`first hit at rank ${result.first_relevant_rank}`);
+      }
+      if (isSet(result.total_ms)) {
+        addTag(`${(result.total_ms / 1000).toFixed(1)}s`);
+      }
+      if (isSet(result.correct_document_hit)) {
+        addTag(hitLabel(result.correct_document_hit), hitClass(result.correct_document_hit));
+      }
+      if (result.answer_verdict) {
+        addTag(
+          `answer ${verdictLabel(result.answer_verdict)}`,
+          verdictClass(result.answer_verdict),
+          result.answer_verdict_reason || ""
+        );
       }
     }
 
@@ -471,18 +566,36 @@
         summaryLine.textContent = "";
         return;
       }
+
+      function versus(unfilteredValue, filteredValue, suffix) {
+        const u = isSet(unfilteredValue) ? `${unfilteredValue}${suffix}` : "–";
+        const f = isSet(filteredValue) ? `${filteredValue}${suffix}` : "–";
+        return `${u} → ${f}`;
+      }
+
       const parts = [
         `${summary.count} run${summary.count === 1 ? "" : "s"}`,
         `avg ${summary.avg_context_token_reduction_percent}% context reduction`,
       ];
+      if (isSet(summary.avg_unfiltered_unique_documents) || isSet(summary.avg_filtered_unique_documents)) {
+        parts.push(`source docs ${versus(summary.avg_unfiltered_unique_documents, summary.avg_filtered_unique_documents, "")}`);
+      }
       if (summary.labeled_count > 0) {
-        const unfilteredRate = summary.unfiltered_hit_rate_percent ?? "–";
-        const filteredRate = summary.filtered_hit_rate_percent ?? "–";
+        parts.push(`hit rate ${versus(summary.unfiltered_hit_rate_percent, summary.filtered_hit_rate_percent, "%")}`);
+        if (isSet(summary.avg_unfiltered_context_precision) || isSet(summary.avg_filtered_context_precision)) {
+          parts.push(`precision ${versus(summary.avg_unfiltered_context_precision, summary.avg_filtered_context_precision, "")}`);
+        }
+        if (isSet(summary.unfiltered_mrr) || isSet(summary.filtered_mrr)) {
+          parts.push(`MRR ${versus(summary.unfiltered_mrr, summary.filtered_mrr, "")}`);
+        }
+        parts.push(`${summary.labeled_count} labeled`);
+      }
+      if (summary.judged_count > 0) {
         parts.push(
-          `hit rate: unfiltered ${unfilteredRate}% vs filtered ${filteredRate}% (${summary.labeled_count} labeled)`
+          `answer accuracy ${versus(summary.unfiltered_answer_accuracy_percent, summary.filtered_answer_accuracy_percent, "%")} (${summary.judged_count} judged)`
         );
       }
-      summaryLine.textContent = parts.join(" · ");
+      summaryLine.textContent = `unfiltered → filtered: ${parts.join(" · ")}`;
     }
 
     function renderHistory(results) {
@@ -491,16 +604,36 @@
       downloadBtn.disabled = results.length === 0;
       clearBtn.disabled = results.length === 0;
 
+      function pair(unfilteredValue, filteredValue, format) {
+        const fmt = format || String;
+        const u = isSet(unfilteredValue) ? fmt(unfilteredValue) : "–";
+        const f = isSet(filteredValue) ? fmt(filteredValue) : "–";
+        return `${u} → ${f}`;
+      }
+
       results.forEach((item) => {
         const row = document.createElement("tr");
+        const filteredHit = item.filtered.correct_document_hit;
+        const filteredVerdict = item.filtered.answer_verdict;
         const cells = [
           { text: item.question },
           { text: String(item.filtered.documents_selected) },
-          { text: String(item.unfiltered.retrieved_chunks) },
-          { text: String(item.filtered.retrieved_chunks) },
+          { text: pair(item.unfiltered.retrieved_chunks, item.filtered.retrieved_chunks) },
+          { text: pair(item.unfiltered.unique_source_documents, item.filtered.unique_source_documents) },
           { text: `${item.context_token_reduction_percent}%` },
-          { text: hitLabel(item.unfiltered.correct_document_hit) || "–", cls: hitClass(item.unfiltered.correct_document_hit) },
-          { text: hitLabel(item.filtered.correct_document_hit) || "–", cls: hitClass(item.filtered.correct_document_hit) },
+          {
+            text: pair(item.unfiltered.context_precision, item.filtered.context_precision,
+              (v) => `${Math.round(v * 100)}%`),
+          },
+          {
+            text: pair(item.unfiltered.correct_document_hit, item.filtered.correct_document_hit,
+              (v) => (v ? "✓" : "✗")),
+            cls: hitClass(filteredHit),
+          },
+          {
+            text: pair(item.unfiltered.answer_verdict, item.filtered.answer_verdict, verdictLabel),
+            cls: verdictClass(filteredVerdict),
+          },
         ];
 
         cells.forEach(({ text, cls }) => {
@@ -555,7 +688,7 @@
       const question = questionInput.value.trim();
       if (!question) { questionInput.focus(); return; }
 
-      const expectedDocumentId = expectedInput.value.trim();
+      const expectedAnswer = expectedAnswerInput.value.trim();
 
       runBtn.disabled = true;
       statusLine.textContent = "Running filtered and unfiltered retrieval…";
@@ -563,7 +696,8 @@
       try {
         const record = await postJson("/eval", {
           question,
-          expected_document_id: expectedDocumentId || undefined,
+          ...expectedDocumentPayload(expectedInput.value),
+          expected_answer: expectedAnswer || undefined,
         });
         renderComparison(record);
         statusLine.textContent = "Done.";
@@ -571,6 +705,81 @@
       } catch (err) {
         statusLine.textContent = err.message || "Comparison failed. Please try again.";
       } finally {
+        runBtn.disabled = false;
+      }
+    });
+
+    /* ── Batch test-set runner ─────────────────── */
+
+    function readTestsetFile(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const parsed = JSON.parse(String(reader.result));
+            if (!Array.isArray(parsed) || parsed.length === 0) {
+              throw new Error("Test set must be a non-empty JSON array.");
+            }
+            resolve(parsed);
+          } catch (err) {
+            reject(new Error(`Invalid test set: ${err.message}`));
+          }
+        };
+        reader.onerror = () => reject(new Error("Could not read the test set file."));
+        reader.readAsText(file);
+      });
+    }
+
+    testsetInput.addEventListener("change", () => {
+      runBatchBtn.disabled = !testsetInput.files || testsetInput.files.length === 0;
+      batchStatus.textContent = "";
+    });
+
+    runBatchBtn.addEventListener("click", async () => {
+      if (!requireApiBase()) return;
+      const file = testsetInput.files && testsetInput.files[0];
+      if (!file) return;
+
+      runBatchBtn.disabled = true;
+      runBtn.disabled = true;
+      let failures = 0;
+
+      try {
+        const testset = await readTestsetFile(file);
+
+        /* Each case is one POST /eval (both pipelines + judge). Runs are
+           sequential to stay friendly to the LLM API's rate limits. */
+        for (let i = 0; i < testset.length; i += 1) {
+          const testCase = testset[i] || {};
+          const question = String(testCase.question || "").trim();
+          batchStatus.textContent = `Running ${i + 1}/${testset.length}…`;
+
+          if (!question) {
+            failures += 1;
+            continue;
+          }
+
+          try {
+            const record = await postJson("/eval", {
+              question,
+              expected_document_id: testCase.expected_document_id || undefined,
+              expected_document_filename: testCase.expected_document_filename || undefined,
+              expected_answer: testCase.expected_answer || undefined,
+            });
+            renderComparison(record);
+          } catch (err) {
+            failures += 1;
+          }
+        }
+
+        batchStatus.textContent = failures
+          ? `Done: ${testset.length - failures} of ${testset.length} runs succeeded, ${failures} failed.`
+          : `Done: all ${testset.length} runs succeeded.`;
+        await loadHistory();
+      } catch (err) {
+        batchStatus.textContent = err.message || "Batch run failed.";
+      } finally {
+        runBatchBtn.disabled = !testsetInput.files || testsetInput.files.length === 0;
         runBtn.disabled = false;
       }
     });

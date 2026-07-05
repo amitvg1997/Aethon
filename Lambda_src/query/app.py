@@ -1,10 +1,13 @@
 import json
 import logging
+import math
 import os
 import re
 import socket
+import time
 import urllib.error
 import urllib.request
+from collections import Counter
 
 import boto3
 
@@ -22,13 +25,21 @@ DEEPSEEK_API_URL = os.environ["DEEPSEEK_API_URL"]
 DEEPSEEK_MODEL = os.environ["DEEPSEEK_MODEL"]
 KNOWLEDGE_BASE_ID = os.environ["KNOWLEDGE_BASE_ID"]
 MAX_RETRIEVAL_RESULTS = int(os.environ.get("MAX_RETRIEVAL_RESULTS", "5"))
-KNOWLEDGE_BASE_CHUNK_MAX_TOKENS = int(
-    os.environ.get("KNOWLEDGE_BASE_CHUNK_MAX_TOKENS", "500")
-)
 MAX_DOCUMENT_CANDIDATES = int(os.environ.get("MAX_DOCUMENT_CANDIDATES", "3"))
+# Candidates scoring below this fraction of the top score are dropped instead
+# of padding the filter out to top-k with weak matches. Near-duplicates that
+# miss the question's discriminative terms (country, year, version) land
+# well under this margin; genuinely ambiguous questions score candidates
+# evenly and keep them all.
+RELATIVE_SCORE_THRESHOLD = float(os.environ.get("RELATIVE_SCORE_THRESHOLD", "0.75"))
+# Warm-invocation cache for the DynamoDB metadata index: the document set
+# changes on upload/sync, not per query, so re-scanning on every question
+# only adds latency and read cost.
+DOCUMENTS_CACHE_TTL_SECONDS = int(os.environ.get("DOCUMENTS_CACHE_TTL_SECONDS", "45"))
 SYNCED_KNOWLEDGE_BASE_STATUSES = {"SYNCED", "COMPLETE", "COMPLETED"}
 LLM_REQUEST_TIMEOUT_SECONDS = int(os.environ.get("LLM_REQUEST_TIMEOUT_SECONDS", "12"))
 _deepseek_api_key = None
+_documents_cache = {"items": None, "expires_at": 0.0}
 table = dynamodb.Table(DOCUMENTS_TABLE)
 
 
@@ -103,10 +114,10 @@ def _document_terms(item):
     }
 
 
-def _select_candidate_document_ids(question):
-    question_terms = _question_terms(question)
-    if not question_terms:
-        return []
+def _load_documents():
+    now = time.monotonic()
+    if _documents_cache["items"] is not None and now < _documents_cache["expires_at"]:
+        return _documents_cache["items"]
 
     items = []
     response = table.scan()
@@ -118,23 +129,76 @@ def _select_candidate_document_ids(question):
             break
         response = table.scan(ExclusiveStartKey=last_key)
 
-    ranked_documents = []
+    _documents_cache["items"] = items
+    _documents_cache["expires_at"] = now + DOCUMENTS_CACHE_TTL_SECONDS
+    return items
+
+
+def _select_candidate_documents(question, items):
+    """Rank synced documents against the question with IDF-weighted term matching.
+
+    Near-duplicate documents share most of their metadata terms; only a few
+    discriminative terms (country, year, version) separate them. Weighting
+    matched terms by inverse document frequency makes those rare terms
+    dominate the score, so the router disambiguates duplicates by exactly the
+    fields that distinguish them. Length normalization stops long-metadata
+    documents from always winning; a relative threshold drops weak candidates
+    instead of padding the filter out to top-k.
+
+    NOTE: intentionally duplicated in Lambda_src/eval/app.py — keep in sync.
+    """
+    question_terms = _question_terms(question)
+    if not question_terms:
+        return []
+
+    eligible = []
     for item in items:
         if item.get("metadata_status") != "COMPLETED":
             continue
         if item.get("knowledge_base_status") not in SYNCED_KNOWLEDGE_BASE_STATUSES:
             continue
+        if not item.get("document_id"):
+            continue
+        eligible.append((item, _document_terms(item)))
 
-        document_id = item.get("document_id")
-        if not document_id:
+    if not eligible:
+        return []
+
+    document_frequency = Counter(
+        term for _, terms in eligible for term in terms
+    )
+    total_documents = len(eligible)
+
+    scored = []
+    for item, terms in eligible:
+        matched = question_terms.intersection(terms)
+        if not matched:
             continue
 
-        score = len(question_terms.intersection(_document_terms(item)))
-        if score:
-            ranked_documents.append((score, document_id))
+        weight = sum(
+            math.log(1 + total_documents / document_frequency[term])
+            for term in matched
+        )
+        score = weight / math.sqrt(len(terms) or 1)
+        scored.append(
+            {
+                "document_id": item["document_id"],
+                "title": str(item.get("title", "")),
+                "score": round(score, 4),
+                "matched_terms": sorted(matched)[:8],
+            }
+        )
 
-    ranked_documents.sort(reverse=True)
-    return [document_id for _, document_id in ranked_documents[:MAX_DOCUMENT_CANDIDATES]]
+    scored.sort(key=lambda candidate: candidate["score"], reverse=True)
+    if not scored:
+        return []
+
+    top_score = scored[0]["score"]
+    return [
+        candidate
+        for candidate in scored[:MAX_DOCUMENT_CANDIDATES]
+        if candidate["score"] >= top_score * RELATIVE_SCORE_THRESHOLD
+    ]
 
 
 def _document_id_filter(document_ids):
@@ -143,6 +207,18 @@ def _document_id_filter(document_ids):
         for document_id in document_ids
     ]
     return filters[0] if len(filters) == 1 else {"orAll": filters}
+
+
+def _document_id_from_source(uri):
+    if not uri:
+        return None
+
+    # s3://bucket/uploads/<document_id>/<filename>
+    parts = uri.split("://", 1)[-1].split("/")
+    if len(parts) >= 3 and parts[1] == "uploads":
+        return parts[2]
+
+    return None
 
 
 def _retrieve_context(question, document_ids=None):
@@ -183,21 +259,22 @@ def _estimate_tokens(text):
     return (len(text) + 3) // 4
 
 
-def _usage_summary(candidate_document_ids, contexts):
-    context_tokens = sum(_estimate_tokens(context["text"]) for context in contexts)
-    unfiltered_upper_bound = MAX_RETRIEVAL_RESULTS * KNOWLEDGE_BASE_CHUNK_MAX_TOKENS
-    reduction_percent = 0
-    if unfiltered_upper_bound:
-        reduction_percent = round(
-            max(0, 1 - (context_tokens / unfiltered_upper_bound)) * 100
-        )
+def _usage_summary(candidate_documents, contexts):
+    unique_source_documents = len(
+        {
+            document_id
+            for context in contexts
+            if (document_id := _document_id_from_source(context["source"]))
+        }
+    )
 
     return {
-        "documents_selected": len(candidate_document_ids),
+        "documents_selected": len(candidate_documents),
         "retrieved_chunks": len(contexts),
-        "estimated_context_tokens": context_tokens,
-        "unfiltered_context_upper_bound_tokens": unfiltered_upper_bound,
-        "potential_context_token_reduction_percent": reduction_percent,
+        "estimated_context_tokens": sum(
+            _estimate_tokens(context["text"]) for context in contexts
+        ),
+        "unique_source_documents": unique_source_documents,
     }
 
 
@@ -252,7 +329,11 @@ def lambda_handler(event, context):
         return _response(400, {"message": "question is required."})
 
     try:
-        candidate_document_ids = _select_candidate_document_ids(question)
+        items = _load_documents()
+        candidate_documents = _select_candidate_documents(question, items)
+        candidate_document_ids = [
+            candidate["document_id"] for candidate in candidate_documents
+        ]
 
         # Fall back to unfiltered retrieval when no DynamoDB candidates match —
         # prevents recall collapse on ambiguous/short queries, or when a
@@ -267,7 +348,8 @@ def lambda_handler(event, context):
                     "citations": [],
                     "retrieved_count": 0,
                     "metadata_filter_applied": bool(candidate_document_ids),
-                    "usage_summary": _usage_summary(candidate_document_ids, []),
+                    "selected_documents": candidate_documents,
+                    "usage_summary": _usage_summary(candidate_documents, []),
                 },
             )
         answer = _answer_with_deepseek(question, contexts)
@@ -290,6 +372,7 @@ def lambda_handler(event, context):
             ],
             "retrieved_count": len(contexts),
             "metadata_filter_applied": bool(candidate_document_ids),
-            "usage_summary": _usage_summary(candidate_document_ids, contexts),
+            "selected_documents": candidate_documents,
+            "usage_summary": _usage_summary(candidate_documents, contexts),
         },
     )

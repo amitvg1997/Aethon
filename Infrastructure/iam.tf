@@ -168,6 +168,8 @@ data "aws_iam_policy_document" "result_processor" {
     effect = "Allow"
 
     actions = [
+      # Scan powers exact-duplicate detection (content_sha256 lookup).
+      "dynamodb:Scan",
       "dynamodb:UpdateItem",
     ]
 

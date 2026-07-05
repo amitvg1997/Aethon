@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import os
@@ -7,6 +8,7 @@ import urllib.request
 from datetime import datetime, timezone
 
 import boto3
+from boto3.dynamodb.conditions import Attr
 
 
 logger = logging.getLogger()
@@ -92,6 +94,72 @@ def _store_knowledge_base_metadata(document_id, object_key, metadata):
     )
 
     return metadata_key
+
+
+def _normalized_content_hash(extracted_text):
+    """Content fingerprint tolerant of OCR whitespace/casing jitter."""
+    normalized = " ".join(extracted_text.lower().split())
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def _find_canonical_document(document_id, content_sha256):
+    """Return the earliest other document with identical extracted content.
+
+    Only non-duplicate documents qualify as canonical, so duplicates never
+    chain to each other. A scan is fine at prototype scale (~thousands of
+    docs); two identical files processed at the same instant can race past
+    each other, which is an accepted prototype limitation.
+    """
+    matches = []
+    scan_kwargs = {
+        "FilterExpression": (
+            Attr("content_sha256").eq(content_sha256)
+            & Attr("document_id").ne(document_id)
+            & Attr("duplicate_of").not_exists()
+        ),
+        "ProjectionExpression": "document_id, created_at",
+    }
+    response = table.scan(**scan_kwargs)
+
+    while True:
+        matches.extend(response.get("Items", []))
+        last_key = response.get("LastEvaluatedKey")
+        if not last_key:
+            break
+        response = table.scan(**scan_kwargs, ExclusiveStartKey=last_key)
+
+    if not matches:
+        return None
+
+    return min(matches, key=lambda item: str(item.get("created_at", "")))["document_id"]
+
+
+def _mark_document_duplicate(
+    document_id, job_id, extracted_text_key, canonical_document_id, content_sha256
+):
+    table.update_item(
+        Key={"document_id": document_id},
+        UpdateExpression=(
+            "SET textract_job_id = :textract_job_id, "
+            "extracted_text_s3_key = :extracted_text_s3_key, "
+            "content_sha256 = :content_sha256, "
+            "duplicate_of = :duplicate_of, "
+            "processing_status = :processing_status, "
+            "metadata_status = :metadata_status, "
+            "knowledge_base_status = :knowledge_base_status, "
+            "updated_at = :updated_at"
+        ),
+        ExpressionAttributeValues={
+            ":textract_job_id": job_id,
+            ":extracted_text_s3_key": extracted_text_key,
+            ":content_sha256": content_sha256,
+            ":duplicate_of": canonical_document_id,
+            ":processing_status": "DUPLICATE",
+            ":metadata_status": "SKIPPED_DUPLICATE",
+            ":knowledge_base_status": "SKIPPED_DUPLICATE",
+            ":updated_at": _utc_now(),
+        },
+    )
 
 
 def _get_deepseek_api_key():
@@ -217,7 +285,13 @@ def _mark_document_failed(document_id, message):
 
 
 def _update_document_metadata(
-    document_id, job_id, extracted_text_key, knowledge_base_metadata_key, text_preview, metadata
+    document_id,
+    job_id,
+    extracted_text_key,
+    knowledge_base_metadata_key,
+    text_preview,
+    metadata,
+    content_sha256,
 ):
     table.update_item(
         Key={"document_id": document_id},
@@ -225,6 +299,7 @@ def _update_document_metadata(
             "SET textract_job_id = :textract_job_id, "
             "extracted_text_s3_key = :extracted_text_s3_key, "
             "knowledge_base_metadata_s3_key = :knowledge_base_metadata_s3_key, "
+            "content_sha256 = :content_sha256, "
             "text_preview = :text_preview, "
             "title = :title, "
             "summary = :summary, "
@@ -240,6 +315,7 @@ def _update_document_metadata(
             ":textract_job_id": job_id,
             ":extracted_text_s3_key": extracted_text_key,
             ":knowledge_base_metadata_s3_key": knowledge_base_metadata_key,
+            ":content_sha256": content_sha256,
             ":text_preview": text_preview,
             ":title": metadata["title"],
             ":summary": metadata["summary"],
@@ -265,6 +341,24 @@ def _process_textract_completion(message):
 
     extracted_text = "\n".join(_get_textract_lines(job_id))
     extracted_text_key = _store_extracted_text(document_id, extracted_text)
+
+    # Exact-duplicate detection runs BEFORE the LLM call: a redundant copy
+    # costs no metadata-extraction tokens, is never written as a Knowledge
+    # Base sidecar, and never enters ingestion — duplicates cannot pollute
+    # the vector store or the retrieval context.
+    content_sha256 = _normalized_content_hash(extracted_text)
+    canonical_document_id = _find_canonical_document(document_id, content_sha256)
+    if canonical_document_id:
+        _mark_document_duplicate(
+            document_id, job_id, extracted_text_key, canonical_document_id, content_sha256
+        )
+        return {
+            "document_id": document_id,
+            "textract_job_id": job_id,
+            "duplicate_of": canonical_document_id,
+            "status": "SKIPPED_DUPLICATE",
+        }
+
     metadata = _extract_metadata_with_deepseek(extracted_text)
     document_key = message["DocumentLocation"]["S3ObjectName"]
     knowledge_base_metadata_key = _store_knowledge_base_metadata(
@@ -278,6 +372,7 @@ def _process_textract_completion(message):
         knowledge_base_metadata_key=knowledge_base_metadata_key,
         text_preview=extracted_text[:TEXT_PREVIEW_LIMIT],
         metadata=metadata,
+        content_sha256=content_sha256,
     )
     return {
         "document_id": document_id,

@@ -33,14 +33,29 @@
           <textarea id="evalQuestion" rows="2" placeholder="Ask a question that could match multiple similar or duplicate documents…" required></textarea>
         </div>
         <div class="field">
-          <label for="evalExpectedDoc">Expected document ID <span class="field-optional">(optional — enables hit/miss scoring)</span></label>
-          <input id="evalExpectedDoc" type="text" placeholder="e.g. 910e7a9d-b423-4cf3-88c7-f55883575cf2">
+          <label for="evalExpectedDoc">Expected document ID or filename <span class="field-optional">(optional — enables precision, rank and hit/miss scoring)</span></label>
+          <input id="evalExpectedDoc" type="text" placeholder="e.g. germany_policy.pdf or 910e7a9d-b423-4cf3-88c7-f55883575cf2">
+        </div>
+        <div class="field">
+          <label for="evalExpectedAnswer">Reference answer <span class="field-optional">(optional — a blind LLM judge grades both answers against it)</span></label>
+          <textarea id="evalExpectedAnswer" rows="2" placeholder="The factually correct answer, e.g. 'Customer records must be retained for 10 years.'"></textarea>
         </div>
         <div class="eval-form-footer">
           <span class="status-line" id="evalStatus"></span>
           <button class="btn-primary" id="runEvalButton" type="submit">Run comparison</button>
         </div>
       </form>
+
+      <section class="card eval-form">
+        <div class="field">
+          <label for="testsetFile">Batch test set <span class="field-optional">(JSON array of {question, expected_document_filename or expected_document_id, expected_answer} — see scripts/generate_test_corpus.py)</span></label>
+          <input id="testsetFile" type="file" accept=".json,application/json">
+        </div>
+        <div class="eval-form-footer">
+          <span class="status-line" id="batchStatus"></span>
+          <button class="btn-primary" id="runBatchButton" type="button" disabled>Run test set</button>
+        </div>
+      </section>
 
       <section class="eval-compare" id="evalCompare" hidden>
         <article class="eval-column">
@@ -76,12 +91,13 @@
             <thead>
               <tr>
                 <th>Question</th>
-                <th>Docs scanned</th>
-                <th>Unfiltered chunks</th>
-                <th>Filtered chunks</th>
+                <th>Docs selected</th>
+                <th>Chunks U→F</th>
+                <th>Source docs U→F</th>
                 <th>Context reduction</th>
-                <th>Unfiltered hit</th>
-                <th>Filtered hit</th>
+                <th>Precision U→F</th>
+                <th>Hit U→F</th>
+                <th>Answer U→F</th>
               </tr>
             </thead>
             <tbody id="evalTableBody"></tbody>
