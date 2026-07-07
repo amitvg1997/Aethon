@@ -706,7 +706,11 @@ h1, h2, p { margin: 0; }
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 14px;
-  overflow: hidden;
+  /* History grows unbounded and the table is wide: scroll inside the card
+     (both axes) instead of clipping columns or stretching the page. */
+  overflow: auto;
+  max-height: min(480px, 62vh);
+  overscroll-behavior: contain;
 }
 
 .eval-table {
@@ -736,6 +740,14 @@ h1, h2, p { margin: 0; }
   letter-spacing: 0.02em;
   color: var(--muted);
   background: var(--bg);
+  /* Keep headers readable while the history scrolls vertically. With
+     border-collapse the th border scrolls away, so draw it as an inset
+     shadow instead. */
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  border-bottom: 0;
+  box-shadow: inset 0 -1px 0 var(--line);
 }
 
 .eval-table tbody tr:last-child td {

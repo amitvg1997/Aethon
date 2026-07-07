@@ -1,0 +1,52 @@
+[
+  {
+    "question": "How long must customer records be retained under the German data retention policy?",
+    "expected_document_filename": "germany_data_retention_policy.pdf",
+    "expected_answer": "Customer records must be retained for 10 years from the end of the business relationship."
+  },
+  {
+    "question": "How long must customer records be retained under the French data retention policy?",
+    "expected_document_filename": "france_data_retention_policy.pdf",
+    "expected_answer": "Customer records must be retained for 5 years from the end of the business relationship."
+  },
+  {
+    "question": "Which supervisory authority oversees data protection compliance in France?",
+    "expected_document_filename": "france_data_retention_policy.pdf",
+    "expected_answer": "The Commission Nationale de l'Informatique et des Libertes (CNIL)."
+  },
+  {
+    "question": "What is the maximum fine for non-compliance under the Spanish data retention policy?",
+    "expected_document_filename": "spain_data_retention_policy.pdf",
+    "expected_answer": "EUR 10 million."
+  },
+  {
+    "question": "Within what deadline must a data breach be reported under the Spanish policy?",
+    "expected_document_filename": "spain_data_retention_policy.pdf",
+    "expected_answer": "Within 96 hours after becoming aware of the breach."
+  },
+  {
+    "question": "Who is the Data Protection Officer named in the German policy?",
+    "expected_document_filename": "germany_data_retention_policy.pdf",
+    "expected_answer": "Dr. Anna Weber."
+  },
+  {
+    "question": "How many paid vacation days do employees get according to the 2026 employee handbook?",
+    "expected_document_filename": "employee_handbook_2026.pdf",
+    "expected_answer": "30 paid vacation days per calendar year."
+  },
+  {
+    "question": "How many days per week could employees work remotely under the 2023 handbook?",
+    "expected_document_filename": "employee_handbook_2023.pdf",
+    "expected_answer": "Up to 2 days per week with manager approval."
+  },
+  {
+    "question": "What is the probation period in the 2026 edition of the employee handbook?",
+    "expected_document_filename": "employee_handbook_2026.pdf",
+    "expected_answer": "3 months."
+  },
+  {
+    "question": "In which month is the French data retention policy reviewed each year?",
+    "expected_document_filename": "france_data_retention_policy.pdf",
+    "expected_answer": "July."
+  }
+]

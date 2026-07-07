@@ -42,7 +42,7 @@ Plus: **batch test-set runner** (one click runs a whole labeled question suite) 
 | 1.2 | LLM-as-judge: optional `expected_answer` in `POST /eval`; single blind, order-randomized judge call grades both answers (correct / partially_correct / incorrect + reason); graceful degradation on judge failure; bounded timeouts (answers 15s, judge 8s) to stay inside the 28s Lambda cap | `Lambda_src/eval/app.py` | ✅ |
 | 1.3 | Accept `expected_document_filename` as an alternative to `expected_document_id` (resolved against DynamoDB) so labeled test sets are portable across re-uploads | `Lambda_src/eval/app.py` | ✅ |
 | 1.4 | Extended summary aggregates (avg precision, MRR, unique docs, judged answer accuracy, avg latency per pipeline), backward-compatible with old records | `Lambda_src/eval/app.py` | ✅ |
-| 1.5 | Eval dashboard: expected-answer field, ID-or-filename field, new metric tags on the comparison columns, new history-table columns, extended CSV export | `Frontend/eval.html`, `Frontend/app.js` | ✅ |
+| 1.5 | Eval dashboard: expected-answer field, ID-or-filename field, new metric tags on the comparison columns, new history-table columns, extended CSV export; history table scrolls inside its card (max-height + sticky header) instead of clipping/stretching the page | `Frontend/eval.html`, `Frontend/app.js`, `Frontend/styles.css` | ✅ |
 | 1.6 | Batch test-set runner on the eval page: upload a `testset.json`, runs each question sequentially with progress, then refreshes the summary | `Frontend/eval.html`, `Frontend/app.js` | ✅ |
 
 ### Phase 2 — Pipeline relevance & efficiency
@@ -62,6 +62,7 @@ Plus: **batch test-set runner** (one click runs a whole labeled question suite) 
 | 3.1 | Synthetic test-corpus generator: zero-dependency script producing PDF variants of the same policy for different countries (near-duplicates with different facts), one exact duplicate (dedup demo), two versions of an employee handbook (version ambiguity), plus a labeled `testset.json` for the batch runner | `scripts/generate_test_corpus.py` | ✅ |
 | 3.2 | README: rewrite eval section (new metrics, judge, batch runner, corpus generator), document router scoring + dedup + cache, add scripts/ to layout | `README.md` | ✅ |
 | 3.3 | Local sanity checks: `py_compile` all Lambdas, unit-test scoring/judge-parsing/dedup-hash logic, validate generated PDFs | scratchpad | ✅ |
+| 3.4 | Presentation blueprint: slide-by-slide flow (goal/content/visual/notes per slide), backup slides, timing plan. Slide 12 (results) has placeholders that are filled from the Phase 4.3 batch run | `PRESENTATION.md` | ✅ |
 
 ### Phase 4 — Deploy & verify (NEXT — start here tomorrow)
 
@@ -70,7 +71,7 @@ Plus: **batch test-set runner** (one click runs a whole labeled question suite) 
 | 4.1 | Deploy | Commit + push to `main`; GitHub Actions applies Terraform (Lambda zips + the iam.tf change). Or locally: `cd Infrastructure && terraform init -backend-config=backend.hcl && terraform apply` | ⬜ |
 | 4.2 | Generate + upload demo corpus | `python3 scripts/generate_test_corpus.py --out ./corpus` → upload the PDFs via the frontend → wait for metadata → **Sync Knowledge Base**. Expect `germany_data_retention_policy_copy.pdf` to end up `SKIPPED_DUPLICATE` (upload it a minute after the original so the original's hash is already stored) | ⬜ |
 | 4.3 | Run the batch test set | Eval page → "Run test set" → select `corpus/testset.json`. Verify precision / MRR / judge / unique-docs metrics populate and filtered beats unfiltered | ⬜ |
-| 4.4 | Presentation numbers | Export CSV; headline numbers: filtered vs unfiltered **context precision**, **answer accuracy**, **hit rate**, **unique source docs**, avg **token reduction** | ⬜ |
+| 4.4 | Presentation numbers | Export CSV; headline numbers: filtered vs unfiltered **context precision**, **answer accuracy**, **hit rate**, **unique source docs**, avg **token reduction** — then fill the `[…]` placeholders on Slide 12/16 of `PRESENTATION.md` and take the screenshots listed in its checklist | ⬜ |
 
 ### Phase 5 — Ideas / not started (optional, post-presentation)
 
