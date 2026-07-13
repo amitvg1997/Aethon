@@ -194,11 +194,12 @@ def _select_candidate_documents(question, items):
         return []
 
     top_score = scored[0]["score"]
-    return [
+    qualified = [
         candidate
-        for candidate in scored[:MAX_DOCUMENT_CANDIDATES]
+        for candidate in scored
         if candidate["score"] >= top_score * RELATIVE_SCORE_THRESHOLD
     ]
+    return qualified[:MAX_DOCUMENT_CANDIDATES]
 
 
 def _document_id_filter(document_ids):
@@ -309,6 +310,7 @@ Document context:
             "stream": False,
             "temperature": 0.2,
             "max_tokens": 900,
+            "preference": "balanced",
         }
     )
 
