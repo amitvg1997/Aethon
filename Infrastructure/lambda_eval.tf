@@ -24,7 +24,7 @@ resource "aws_lambda_function" "eval" {
       DEEPSEEK_MODEL              = var.deepseek_model
       KNOWLEDGE_BASE_ID           = aws_bedrockagent_knowledge_base.documents.id
       MAX_RETRIEVAL_RESULTS       = "5"
-      MAX_DOCUMENT_CANDIDATES     = "3"
+      MAX_DOCUMENT_CANDIDATES     = "20"
     }
   }
 

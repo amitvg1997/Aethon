@@ -24,8 +24,8 @@ resource "aws_lambda_function" "query" {
       KNOWLEDGE_BASE_ID               = aws_bedrockagent_knowledge_base.documents.id
       MAX_RETRIEVAL_RESULTS           = "3"
       KNOWLEDGE_BASE_CHUNK_MAX_TOKENS = tostring(var.knowledge_base_chunk_max_tokens)
-      MAX_DOCUMENT_CANDIDATES         = "3"
-      LLM_REQUEST_TIMEOUT_SECONDS     = "20"
+      MAX_DOCUMENT_CANDIDATES         = "20"
+      LLM_REQUEST_TIMEOUT_SECONDS     = "24"
     }
   }
 
