@@ -25,7 +25,7 @@ variable "allowed_cors_origins" {
 variable "deepseek_api_url" {
   description = "OpenAI-compatible chat completions endpoint used for metadata extraction."
   type        = string
-  default     = "https://api.eurouter.ai/api/v1/chat/completions"
+  default     = "https://api.cortecs.ai/v1/chat/completions"
 }
 
 variable "deepseek_model" {
