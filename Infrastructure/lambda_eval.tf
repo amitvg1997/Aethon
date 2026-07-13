@@ -9,7 +9,7 @@ resource "aws_lambda_function" "eval" {
   role          = aws_iam_role.eval.arn
   handler       = "app.lambda_handler"
   runtime       = "python3.12"
-  timeout       = 28
+  timeout       = 29
   memory_size   = 512
 
   filename         = data.archive_file.eval.output_path
@@ -25,6 +25,8 @@ resource "aws_lambda_function" "eval" {
       KNOWLEDGE_BASE_ID           = aws_bedrockagent_knowledge_base.documents.id
       MAX_RETRIEVAL_RESULTS       = "5"
       MAX_DOCUMENT_CANDIDATES     = "20"
+      LLM_ANSWER_TIMEOUT_SECONDS  = "18"
+      LLM_JUDGE_TIMEOUT_SECONDS   = "8"
     }
   }
 

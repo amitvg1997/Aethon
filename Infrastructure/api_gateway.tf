@@ -83,9 +83,9 @@ resource "aws_apigatewayv2_integration" "eval" {
   payload_format_version = "2.0"
 
   # See the note on the query integration: HTTP APIs hard-cap integration
-  # timeouts at 30000ms, and the eval Lambda (timeout 28s) runs a filtered
+  # timeouts at 30000ms, and the eval Lambda (timeout 29s) runs a filtered
   # and unfiltered retrieval+answer pipeline concurrently to fit under it.
-  timeout_milliseconds = 29000
+  timeout_milliseconds = 30000
 }
 
 resource "aws_apigatewayv2_route" "run_eval" {
