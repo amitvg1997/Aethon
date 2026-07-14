@@ -40,6 +40,21 @@ def _parse_sns_message(record):
     return json.loads(record["Sns"]["Message"])
 
 
+def _get_object_key(document_id):
+    """Look up the S3 key our own upload event recorded.
+
+    Textract's completion notification echoes back a DocumentLocation that
+    can differ from the key we actually stored the object under (observed:
+    a trailing carriage return appended to some S3ObjectName values), which
+    silently breaks the Knowledge Base metadata sidecar lookup. The
+    DynamoDB record is populated directly from the S3 ObjectCreated event
+    in memory_optimizer and is never touched by Textract, so it's the
+    authoritative source for the key.
+    """
+    response = table.get_item(Key={"document_id": document_id})
+    return response["Item"]["object_key"]
+
+
 def _get_textract_lines(job_id):
     lines = []
     next_token = None
@@ -368,7 +383,7 @@ def _process_textract_completion(message):
         }
 
     metadata = _extract_metadata_with_deepseek(extracted_text)
-    document_key = message["DocumentLocation"]["S3ObjectName"]
+    document_key = _get_object_key(document_id)
     knowledge_base_metadata_key = _store_knowledge_base_metadata(
         document_id, document_key, metadata
     )
