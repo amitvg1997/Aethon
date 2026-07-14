@@ -170,6 +170,10 @@ data "aws_iam_policy_document" "result_processor" {
     actions = [
       # Scan powers exact-duplicate detection (content_sha256 lookup).
       "dynamodb:Scan",
+      # GetItem looks up the authoritative S3 object key our own upload
+      # event recorded, since Textract's completion notification can echo
+      # back a corrupted DocumentLocation.
+      "dynamodb:GetItem",
       "dynamodb:UpdateItem",
     ]
 
