@@ -64,25 +64,32 @@ def _get_deepseek_api_key():
 
 
 def _deepseek_request(payload):
-    request = urllib.request.Request(
-        DEEPSEEK_API_URL,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {_get_deepseek_api_key()}",
-            "Content-Type": "application/json",
-            "User-Agent": "Aethon/1.0 (AWS Lambda document query)",
-        },
-        method="POST",
-    )
+    body = json.dumps(payload).encode("utf-8")
+    headers = {
+        "Authorization": f"Bearer {_get_deepseek_api_key()}",
+        "Content-Type": "application/json",
+        "User-Agent": "Aethon/1.0 (AWS Lambda document query)",
+    }
 
-    try:
-        with urllib.request.urlopen(request, timeout=LLM_REQUEST_TIMEOUT_SECONDS) as response:
-            return json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as error:
-        error_body = error.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"DeepSeek API request failed: {error.code} {error_body}") from error
-    except (TimeoutError, socket.timeout, urllib.error.URLError) as error:
-        raise RuntimeError("The LLM API request timed out. Please try again.") from error
+    max_attempts = 3
+    for attempt in range(1, max_attempts + 1):
+        request = urllib.request.Request(
+            DEEPSEEK_API_URL, data=body, headers=headers, method="POST"
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=LLM_REQUEST_TIMEOUT_SECONDS) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as error:
+            error_body = error.read().decode("utf-8", errors="replace")
+            # The provider's auth backend intermittently returns a 503 under
+            # concurrent requests sharing an API key and says to retry —
+            # back off briefly rather than failing the whole request.
+            if error.code in (500, 502, 503, 504) and attempt < max_attempts:
+                time.sleep(1.5 * attempt)
+                continue
+            raise RuntimeError(f"DeepSeek API request failed: {error.code} {error_body}") from error
+        except (TimeoutError, socket.timeout, urllib.error.URLError) as error:
+            raise RuntimeError("The LLM API request timed out. Please try again.") from error
 
 
 def _question_terms(question):
