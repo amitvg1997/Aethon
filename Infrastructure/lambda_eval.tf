@@ -17,14 +17,15 @@ resource "aws_lambda_function" "eval" {
 
   environment {
     variables = {
-      DOCUMENTS_TABLE             = aws_dynamodb_table.documents.name
-      EVAL_RESULTS_TABLE          = aws_dynamodb_table.eval_results.name
-      DEEPSEEK_API_KEY_SECRET_ARN = aws_secretsmanager_secret.deepseek_api_key.arn
-      DEEPSEEK_API_URL            = var.deepseek_api_url
-      DEEPSEEK_MODEL              = var.deepseek_model
-      KNOWLEDGE_BASE_ID           = aws_bedrockagent_knowledge_base.documents.id
-      MAX_RETRIEVAL_RESULTS       = "5"
-      MAX_DOCUMENT_CANDIDATES     = "20"
+      DOCUMENTS_TABLE                = aws_dynamodb_table.documents.name
+      EVAL_RESULTS_TABLE             = aws_dynamodb_table.eval_results.name
+      DEEPSEEK_API_KEY_SECRET_ARN    = aws_secretsmanager_secret.deepseek_api_key.arn
+      DEEPSEEK_API_URL               = var.deepseek_api_url
+      DEEPSEEK_MODEL                 = var.deepseek_model
+      KNOWLEDGE_BASE_ID              = aws_bedrockagent_knowledge_base.documents.id
+      MAX_RETRIEVAL_RESULTS          = "5"
+      FILTERED_MAX_RETRIEVAL_RESULTS = "3"
+      MAX_DOCUMENT_CANDIDATES        = "20"
     }
   }
 

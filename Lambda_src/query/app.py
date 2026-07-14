@@ -112,6 +112,76 @@ _COUNTRY_DEMONYMS = {
     "british": ("united", "kingdom"),
 }
 
+_COUNTRY_ALIASES = {
+    "australia": {"australia", "australian"},
+    "canada": {"canada", "canadian"},
+    "france": {"france", "french"},
+    "germany": {"germany", "german"},
+    "japan": {"japan", "japanese"},
+    "netherlands": {"netherlands", "dutch"},
+    "singapore": {"singapore", "singaporean"},
+    "spain": {"spain", "spanish"},
+    "united kingdom": {"britain", "british", "uk", "united kingdom"},
+    "united states": {"america", "american", "usa", "united states"},
+}
+
+
+def _country_facets(value):
+    normalized = " ".join(re.findall(r"[a-z0-9]+", str(value).lower()))
+    tokens = set(normalized.split())
+    return {
+        country
+        for country, aliases in _COUNTRY_ALIASES.items()
+        if any(alias in tokens if " " not in alias else alias in normalized for alias in aliases)
+    }
+
+
+def _year_facets(value):
+    return set(re.findall(r"\b(?:19|20)\d{2}\b", str(value)))
+
+
+def _document_facet_text(item):
+    return " ".join(
+        str(value)
+        for value in (
+            item.get("filename", ""),
+            item.get("title", ""),
+            item.get("summary", ""),
+            item.get("country", ""),
+            item.get("jurisdiction", ""),
+            item.get("edition_year", ""),
+        )
+    )
+
+
+def _deduplicate_documents(items):
+    """Keep one routable record for each canonical document or content hash."""
+    eligible_ids = {str(item.get("document_id")) for item in items}
+    canonical = []
+    seen = set()
+    ordered = sorted(
+        items,
+        key=lambda item: (
+            bool(item.get("duplicate_of")),
+            "copy" in str(item.get("filename", "")).lower(),
+            str(item.get("created_at", "")),
+        ),
+    )
+    for item in ordered:
+        duplicate_of = str(item.get("duplicate_of", ""))
+        if duplicate_of and duplicate_of in eligible_ids:
+            continue
+
+        content_hash = str(item.get("content_sha256", "")).strip()
+        identity = ("hash", content_hash)
+        if content_hash and identity in seen:
+            continue
+        if content_hash:
+            seen.add(identity)
+        canonical.append(item)
+
+    return canonical
+
 
 def _question_terms(question):
     stop_words = {
@@ -138,6 +208,7 @@ def _question_terms(question):
 
 def _document_terms(item):
     values = [
+        item.get("filename", ""),
         item.get("title", ""),
         item.get("summary", ""),
         item.get("document_type", ""),
@@ -189,7 +260,7 @@ def _select_candidate_documents(question, items):
     if not question_terms:
         return []
 
-    eligible = []
+    eligible_items = []
     for item in items:
         if item.get("metadata_status") != "COMPLETED":
             continue
@@ -197,7 +268,31 @@ def _select_candidate_documents(question, items):
             continue
         if not item.get("document_id"):
             continue
-        eligible.append((item, _document_terms(item)))
+        eligible_items.append(item)
+
+    eligible_items = _deduplicate_documents(eligible_items)
+    query_countries = _country_facets(question)
+    query_years = _year_facets(question)
+
+    if query_countries:
+        country_matches = [
+            item
+            for item in eligible_items
+            if _country_facets(_document_facet_text(item)).intersection(query_countries)
+        ]
+        if country_matches:
+            eligible_items = country_matches
+
+    if query_years:
+        year_matches = [
+            item
+            for item in eligible_items
+            if _year_facets(_document_facet_text(item)).intersection(query_years)
+        ]
+        if year_matches:
+            eligible_items = year_matches
+
+    eligible = [(item, _document_terms(item)) for item in eligible_items]
 
     if not eligible:
         return []
@@ -222,8 +317,15 @@ def _select_candidate_documents(question, items):
             {
                 "document_id": item["document_id"],
                 "title": str(item.get("title", "")),
+                "filename": str(item.get("filename", "")),
                 "score": round(score, 4),
                 "matched_terms": sorted(matched)[:8],
+                "matched_countries": sorted(
+                    _country_facets(_document_facet_text(item)).intersection(query_countries)
+                ),
+                "matched_years": sorted(
+                    _year_facets(_document_facet_text(item)).intersection(query_years)
+                ),
             }
         )
 

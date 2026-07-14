@@ -31,6 +31,9 @@ DEEPSEEK_API_URL = os.environ["DEEPSEEK_API_URL"]
 DEEPSEEK_MODEL = os.environ["DEEPSEEK_MODEL"]
 KNOWLEDGE_BASE_ID = os.environ["KNOWLEDGE_BASE_ID"]
 MAX_RETRIEVAL_RESULTS = int(os.environ.get("MAX_RETRIEVAL_RESULTS", "5"))
+FILTERED_MAX_RETRIEVAL_RESULTS = int(
+    os.environ.get("FILTERED_MAX_RETRIEVAL_RESULTS", "3")
+)
 MAX_DOCUMENT_CANDIDATES = int(os.environ.get("MAX_DOCUMENT_CANDIDATES", "3"))
 # Candidates scoring below this fraction of the top score are dropped instead
 # of padding the filter out to top-k with weak matches. Near-duplicates that
@@ -148,6 +151,78 @@ _COUNTRY_DEMONYMS = {
     "british": ("united", "kingdom"),
 }
 
+_COUNTRY_ALIASES = {
+    "australia": {"australia", "australian"},
+    "canada": {"canada", "canadian"},
+    "france": {"france", "french"},
+    "germany": {"germany", "german"},
+    "japan": {"japan", "japanese"},
+    "netherlands": {"netherlands", "dutch"},
+    "singapore": {"singapore", "singaporean"},
+    "spain": {"spain", "spanish"},
+    "united kingdom": {"britain", "british", "uk", "united kingdom"},
+    "united states": {"america", "american", "usa", "united states"},
+}
+
+
+def _country_facets(value):
+    normalized = " ".join(re.findall(r"[a-z0-9]+", str(value).lower()))
+    tokens = set(normalized.split())
+    return {
+        country
+        for country, aliases in _COUNTRY_ALIASES.items()
+        if any(alias in tokens if " " not in alias else alias in normalized for alias in aliases)
+    }
+
+
+def _year_facets(value):
+    return set(re.findall(r"\b(?:19|20)\d{2}\b", str(value)))
+
+
+def _document_facet_text(item):
+    return " ".join(
+        str(value)
+        for value in (
+            item.get("filename", ""),
+            item.get("title", ""),
+            item.get("summary", ""),
+            item.get("country", ""),
+            item.get("jurisdiction", ""),
+            item.get("edition_year", ""),
+        )
+    )
+
+
+def _deduplicate_documents(items):
+    """Keep one routable record for each canonical document or content hash."""
+    eligible_ids = {str(item.get("document_id")) for item in items}
+    canonical = []
+    seen = set()
+
+    # Prefer canonical/original-looking records when a scan returns copies first.
+    ordered = sorted(
+        items,
+        key=lambda item: (
+            bool(item.get("duplicate_of")),
+            "copy" in str(item.get("filename", "")).lower(),
+            str(item.get("created_at", "")),
+        ),
+    )
+    for item in ordered:
+        duplicate_of = str(item.get("duplicate_of", ""))
+        if duplicate_of and duplicate_of in eligible_ids:
+            continue
+
+        content_hash = str(item.get("content_sha256", "")).strip()
+        identity = ("hash", content_hash)
+        if content_hash and identity in seen:
+            continue
+        if content_hash:
+            seen.add(identity)
+        canonical.append(item)
+
+    return canonical
+
 
 def _question_terms(question):
     stop_words = {
@@ -174,6 +249,7 @@ def _question_terms(question):
 
 def _document_terms(item):
     values = [
+        item.get("filename", ""),
         item.get("title", ""),
         item.get("summary", ""),
         item.get("document_type", ""),
@@ -219,7 +295,7 @@ def _select_candidate_documents(question, items):
     if not question_terms:
         return []
 
-    eligible = []
+    eligible_items = []
     for item in items:
         if item.get("metadata_status") != "COMPLETED":
             continue
@@ -227,7 +303,31 @@ def _select_candidate_documents(question, items):
             continue
         if not item.get("document_id"):
             continue
-        eligible.append((item, _document_terms(item)))
+        eligible_items.append(item)
+
+    eligible_items = _deduplicate_documents(eligible_items)
+    query_countries = _country_facets(question)
+    query_years = _year_facets(question)
+
+    if query_countries:
+        country_matches = [
+            item
+            for item in eligible_items
+            if _country_facets(_document_facet_text(item)).intersection(query_countries)
+        ]
+        if country_matches:
+            eligible_items = country_matches
+
+    if query_years:
+        year_matches = [
+            item
+            for item in eligible_items
+            if _year_facets(_document_facet_text(item)).intersection(query_years)
+        ]
+        if year_matches:
+            eligible_items = year_matches
+
+    eligible = [(item, _document_terms(item)) for item in eligible_items]
 
     if not eligible:
         return []
@@ -252,8 +352,15 @@ def _select_candidate_documents(question, items):
             {
                 "document_id": item["document_id"],
                 "title": str(item.get("title", "")),
+                "filename": str(item.get("filename", "")),
                 "score": round(score, 4),
                 "matched_terms": sorted(matched)[:8],
+                "matched_countries": sorted(
+                    _country_facets(_document_facet_text(item)).intersection(query_countries)
+                ),
+                "matched_years": sorted(
+                    _year_facets(_document_facet_text(item)).intersection(query_years)
+                ),
             }
         )
 
@@ -302,6 +409,32 @@ def _resolve_expected_document(body, items):
     return expected_document_id, expected_filename
 
 
+def _relevant_document_ids(expected_document_id, expected_filename, items):
+    """Return IDs that are equivalent to the labeled document."""
+    relevant = {expected_document_id} if expected_document_id else set()
+    expected_item = next(
+        (item for item in items if item.get("document_id") == expected_document_id), None
+    )
+    expected_hash = str((expected_item or {}).get("content_sha256", "")).strip()
+
+    for item in items:
+        document_id = item.get("document_id")
+        if not document_id:
+            continue
+        same_filename = expected_filename and (
+            str(item.get("filename", "")).lower() == expected_filename.lower()
+        )
+        same_content = expected_hash and item.get("content_sha256") == expected_hash
+        same_canonical = expected_document_id and (
+            item.get("duplicate_of") == expected_document_id
+            or (expected_item or {}).get("duplicate_of") == document_id
+        )
+        if same_filename or same_content or same_canonical:
+            relevant.add(document_id)
+
+    return relevant
+
+
 def _document_id_filter(document_ids):
     filters = [
         {"equals": {"key": "document_id", "value": document_id}}
@@ -323,7 +456,10 @@ def _document_id_from_source(uri):
 
 
 def _retrieve_context(question, document_ids=None):
-    vector_config = {"numberOfResults": MAX_RETRIEVAL_RESULTS}
+    result_limit = (
+        FILTERED_MAX_RETRIEVAL_RESULTS if document_ids else MAX_RETRIEVAL_RESULTS
+    )
+    vector_config = {"numberOfResults": result_limit}
     if document_ids:
         vector_config["filter"] = _document_id_filter(document_ids)
 
@@ -440,7 +576,7 @@ def _run_pipeline(question, document_ids):
     }
 
 
-def _apply_labeled_metrics(result, expected_document_id):
+def _apply_labeled_metrics(result, expected_document_ids):
     """Chunk-level retrieval quality against the labeled expected document.
 
     - correct_document_hit: expected document appears anywhere in the results
@@ -455,13 +591,18 @@ def _apply_labeled_metrics(result, expected_document_id):
     result["first_relevant_rank"] = None
     result["reciprocal_rank"] = None
 
-    if not expected_document_id:
+    if not expected_document_ids:
         return
+
+    if isinstance(expected_document_ids, str):
+        expected_document_ids = {expected_document_ids}
+    else:
+        expected_document_ids = set(expected_document_ids)
 
     ordered_ids = [
         _document_id_from_source(citation["source"]) for citation in result["citations"]
     ]
-    hits = [document_id == expected_document_id for document_id in ordered_ids]
+    hits = [document_id in expected_document_ids for document_id in ordered_ids]
 
     result["correct_document_hit"] = any(hits)
     result["reciprocal_rank"] = 0.0
@@ -584,6 +725,14 @@ def _handle_run(event):
     expected_document_id, expected_document_filename = _resolve_expected_document(
         body, items
     )
+    relevant_document_ids = _relevant_document_ids(
+        expected_document_id, expected_document_filename, items
+    )
+    candidate_document_hit = (
+        bool(set(candidate_document_ids).intersection(relevant_document_ids))
+        if relevant_document_ids
+        else None
+    )
 
     # Run both pipelines concurrently so the comparison's total latency is
     # close to a single query's, keeping it inside API Gateway's ~29s cap.
@@ -595,8 +744,8 @@ def _handle_run(event):
 
     filtered["documents_selected"] = len(candidate_document_ids)
     filtered["metadata_filter_applied"] = bool(candidate_document_ids)
-    _apply_labeled_metrics(filtered, expected_document_id)
-    _apply_labeled_metrics(unfiltered, expected_document_id)
+    _apply_labeled_metrics(filtered, relevant_document_ids)
+    _apply_labeled_metrics(unfiltered, relevant_document_ids)
 
     judge = None
     if expected_answer:
@@ -620,9 +769,11 @@ def _handle_run(event):
         "eval_id": str(uuid.uuid4()),
         "question": question,
         "expected_document_id": expected_document_id,
+        "relevant_document_ids": sorted(relevant_document_ids),
         "expected_document_filename": expected_document_filename,
         "expected_answer": expected_answer,
         "candidate_documents": candidate_documents,
+        "candidate_document_hit": candidate_document_hit,
         "filtered": filtered,
         "unfiltered": unfiltered,
         "context_token_reduction_percent": _reduction_percent(
@@ -681,6 +832,12 @@ def _summary(items):
         )
         return round(100 * score / len(verdicts))
 
+    candidate_hits = [
+        item["candidate_document_hit"]
+        for item in items
+        if item.get("candidate_document_hit") is not None
+    ]
+
     reduction_values = [
         float(item["context_token_reduction_percent"])
         for item in items
@@ -697,6 +854,14 @@ def _summary(items):
             and item["filtered"].get("answer_verdict")
         ),
         "avg_context_token_reduction_percent": avg(reduction_values) or 0,
+        "candidate_hit_rate_percent": (
+            round(100 * sum(1 for hit in candidate_hits if hit) / len(candidate_hits))
+            if candidate_hits
+            else None
+        ),
+        "avg_candidate_documents": avg(
+            [len(item.get("candidate_documents", [])) for item in items]
+        ),
         "avg_filtered_chunks": avg(pipeline_values("filtered", "retrieved_chunks")),
         "avg_unfiltered_chunks": avg(pipeline_values("unfiltered", "retrieved_chunks")),
         "avg_filtered_context_tokens": avg(
