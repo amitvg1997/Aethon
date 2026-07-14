@@ -281,7 +281,7 @@ terraform apply
 |----------|---------|---------|
 | `aws_region` | `eu-central-1` | Deployment region. |
 | `allowed_cors_origins` | `["http://localhost:3000"]` | Frontend origins allowed to call the API. |
-| `deepseek_api_url` | `https://api.cortecs.ai/v1/chat/completions` | OpenAI-compatible chat endpoint. |
+| `deepseek_api_url` | `https://api.eurouter.ai/api/v1/chat/completions` | OpenAI-compatible chat endpoint. |
 | `deepseek_model` | `deepseek-v3.2` | Chat model for metadata extraction & answers. |
 | `embedding_model_id` | `amazon.titan-embed-text-v2:0` | Bedrock embedding model. |
 | `knowledge_base_chunk_max_tokens` | `500` | Fixed-size chunk size. |

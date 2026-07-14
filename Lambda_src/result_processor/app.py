@@ -243,7 +243,6 @@ Document text:
             "stream": False,
             "temperature": 0,
             "max_tokens": 1500,
-            "preference": "balanced",
         }
     )
 

@@ -40,14 +40,9 @@ MAX_DOCUMENT_CANDIDATES = int(os.environ.get("MAX_DOCUMENT_CANDIDATES", "3"))
 RELATIVE_SCORE_THRESHOLD = float(os.environ.get("RELATIVE_SCORE_THRESHOLD", "0.75"))
 SYNCED_KNOWLEDGE_BASE_STATUSES = {"SYNCED", "COMPLETE", "COMPLETED"}
 # Both answer pipelines run concurrently, then one judge call runs after them.
-# Worst case must stay inside the 29s Lambda / 30s API Gateway budget:
-# retrieval (~2s) + answer (18s) + judge (8s) < 29s. Cortecs has been observed
-# taking ~21-22s to answer a 900-token request, so the answer call can still
-# time out under this budget — there isn't enough room left for a longer
-# answer timeout without cutting into the judge call's slice. If timeouts
-# persist, the judge call needs to be decoupled from this synchronous
-# request rather than squeezed further.
-LLM_ANSWER_TIMEOUT_SECONDS = int(os.environ.get("LLM_ANSWER_TIMEOUT_SECONDS", "18"))
+# Worst case must stay inside the 28s Lambda / 29s API Gateway budget:
+# retrieval (~2s) + answer (15s) + judge (8s) < 28s.
+LLM_ANSWER_TIMEOUT_SECONDS = int(os.environ.get("LLM_ANSWER_TIMEOUT_SECONDS", "15"))
 LLM_JUDGE_TIMEOUT_SECONDS = int(os.environ.get("LLM_JUDGE_TIMEOUT_SECONDS", "8"))
 JUDGE_VERDICTS = {"correct", "partially_correct", "incorrect"}
 
@@ -228,12 +223,11 @@ def _select_candidate_documents(question, items):
         return []
 
     top_score = scored[0]["score"]
-    qualified = [
+    return [
         candidate
-        for candidate in scored
+        for candidate in scored[:MAX_DOCUMENT_CANDIDATES]
         if candidate["score"] >= top_score * RELATIVE_SCORE_THRESHOLD
     ]
-    return qualified[:MAX_DOCUMENT_CANDIDATES]
 
 
 def _resolve_expected_document(body, items):
@@ -356,8 +350,7 @@ Document context:
             ],
             "stream": False,
             "temperature": 0.2,
-            "max_tokens": 900,
-            "preference": "balanced",
+            "max_tokens": 1800,
         },
         LLM_ANSWER_TIMEOUT_SECONDS,
     )
@@ -500,7 +493,6 @@ Return json with this exact structure:
             "stream": False,
             "temperature": 0,
             "max_tokens": 400,
-            "preference": "balanced",
         },
         LLM_JUDGE_TIMEOUT_SECONDS,
     )
