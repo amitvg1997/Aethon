@@ -31,7 +31,7 @@ MAX_DOCUMENT_CANDIDATES = int(os.environ.get("MAX_DOCUMENT_CANDIDATES", "3"))
 # miss the question's discriminative terms (country, year, version) land
 # well under this margin; genuinely ambiguous questions score candidates
 # evenly and keep them all.
-RELATIVE_SCORE_THRESHOLD = float(os.environ.get("RELATIVE_SCORE_THRESHOLD", "0.75"))
+RELATIVE_SCORE_THRESHOLD = float(os.environ.get("RELATIVE_SCORE_THRESHOLD", "0.65"))
 # Warm-invocation cache for the DynamoDB metadata index: the document set
 # changes on upload/sync, not per query, so re-scanning on every question
 # only adds latency and read cost.
@@ -92,17 +92,41 @@ def _deepseek_request(payload):
             raise RuntimeError("The LLM API request timed out. Please try again.") from error
 
 
+# Document metadata is extracted from structured facts and uses the country
+# noun ("Germany"); questions are often phrased with the demonym adjective
+# ("German"). Plain token overlap treats these as unrelated words, which was
+# silently tanking the score of the correct document in country-labeled
+# near-duplicate clusters. Expanding the question side to include the noun
+# form (and its constituent words, for multi-word countries) fixes this
+# without needing to touch how document metadata is stored.
+_COUNTRY_DEMONYMS = {
+    "german": ("germany",),
+    "french": ("france",),
+    "spanish": ("spain",),
+    "japanese": ("japan",),
+    "dutch": ("netherlands",),
+    "canadian": ("canada",),
+    "australian": ("australia",),
+    "singaporean": ("singapore",),
+    "american": ("united", "states"),
+    "british": ("united", "kingdom"),
+}
+
+
 def _question_terms(question):
     stop_words = {
         "a", "an", "and", "are", "about", "can", "does", "for", "from", "how",
         "in", "is", "it", "of", "on", "that", "the", "this", "to", "what", "which",
         "with",
     }
-    return {
+    terms = {
         term
         for term in re.findall(r"[a-z0-9]+", question.lower())
         if len(term) > 2 and term not in stop_words
     }
+    for term in list(terms):
+        terms.update(_COUNTRY_DEMONYMS.get(term, ()))
+    return terms
 
 
 def _document_terms(item):
