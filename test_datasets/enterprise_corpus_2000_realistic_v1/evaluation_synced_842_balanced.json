@@ -1,0 +1,52 @@
+[
+  {
+    "question": "Who owns the learning budget decision for Aethon Identity in Japan, and what financial threshold applies?",
+    "expected_document_id": "AET-HR-0006",
+    "expected_answer": "The Human Resources Control Owner owns the decision, and the applicable threshold is EUR 25,000."
+  },
+  {
+    "question": "Does the Human Resources Director have authority over performance calibration for Aethon Service Hub in Japan when an outage lasts longer than 15 minutes?",
+    "expected_document_id": "AET-HR-0010",
+    "expected_answer": "Yes. The Human Resources Director has authority, with an applicable threshold of an outage longer than 15 minutes."
+  },
+  {
+    "question": "For contractor conversion case CASE-2023-HR-0053, which evidence reference and executive approval are required?",
+    "expected_document_id": "AET-HR-0053",
+    "expected_answer": "The required evidence reference is EV-HR-19378, and approval is provided by the CISO."
+  },
+  {
+    "question": "Which approved document governs compensation review for Aethon Cloud in the Netherlands?",
+    "expected_document_id": "AET-HR-0032",
+    "expected_answer": "The approved document is Human Resources Contract Review Note - Compensation Review - Aethon Cloud - Netherlands, version 2.1."
+  },
+  {
+    "question": "Which Human Resources record connects project PRJ-2025-001 with incident INC-2026-0021?",
+    "expected_document_id": "AET-HR-0013",
+    "expected_answer": "The connecting record is AET-HR-0013, Human Resources Project Status Report - Joiner Mover Leaver - Aethon Analytics - France."
+  },
+  {
+    "question": "Who owns the approved device refresh budget decision for Aethon Data Exchange in Sweden, and what outage threshold applies?",
+    "expected_document_id": "AET-IT-0014",
+    "expected_answer": "The Information Technology Control Owner owns the decision, and the threshold is an outage longer than 30 minutes."
+  },
+  {
+    "question": "Does the Information Technology Operations Lead have authority over service desk priority for Aethon Payments in Sweden at a risk score of 7 or higher?",
+    "expected_document_id": "AET-IT-0070",
+    "expected_answer": "Yes. The Information Technology Operations Lead has authority, with a threshold of risk score 7 or higher."
+  },
+  {
+    "question": "For device refresh case CASE-2025-IT-0092, which evidence reference and approver are required?",
+    "expected_document_id": "AET-IT-0092",
+    "expected_answer": "The required evidence reference is EV-IT-45184, and the approver is the CTO."
+  },
+  {
+    "question": "Which active architecture decision governs device refresh for Aethon Mobile in Australia?",
+    "expected_document_id": "AET-IT-0080",
+    "expected_answer": "The active document is Information Technology Architecture Decision Record - Device Refresh - Aethon Mobile - Australia, version 4.1."
+  },
+  {
+    "question": "Which Information Technology record connects project PRJ-2024-032 with incident INC-2025-0054?",
+    "expected_document_id": "AET-IT-0075",
+    "expected_answer": "The connecting record is AET-IT-0075, Information Technology Exception Decision - SaaS Administration - Aethon Workspace - Spain."
+  }
+]
