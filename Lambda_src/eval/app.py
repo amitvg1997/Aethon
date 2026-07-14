@@ -223,11 +223,12 @@ def _select_candidate_documents(question, items):
         return []
 
     top_score = scored[0]["score"]
-    return [
+    qualified = [
         candidate
-        for candidate in scored[:MAX_DOCUMENT_CANDIDATES]
+        for candidate in scored
         if candidate["score"] >= top_score * RELATIVE_SCORE_THRESHOLD
     ]
+    return qualified[:MAX_DOCUMENT_CANDIDATES]
 
 
 def _resolve_expected_document(body, items):
