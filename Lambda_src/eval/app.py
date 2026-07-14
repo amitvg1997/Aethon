@@ -155,13 +155,20 @@ def _question_terms(question):
         "in", "is", "it", "of", "on", "that", "the", "this", "to", "what", "which",
         "with",
     }
-    terms = {
+    raw_terms = {
         term
         for term in re.findall(r"[a-z0-9]+", question.lower())
         if len(term) > 2 and term not in stop_words
     }
-    for term in list(terms):
-        terms.update(_COUNTRY_DEMONYMS.get(term, ()))
+    # Replace (not add to) the demonym: keeping the adjective as a
+    # searchable term let unrelated documents that coincidentally contain
+    # that rarer word form outscore the actual country-matched document.
+    terms = set()
+    for term in raw_terms:
+        if term in _COUNTRY_DEMONYMS:
+            terms.update(_COUNTRY_DEMONYMS[term])
+        else:
+            terms.add(term)
     return terms
 
 
